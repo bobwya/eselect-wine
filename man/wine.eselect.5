@@ -1,0 +1,238 @@
+.\" -*- coding: utf-8 -*-
+.\" Copyright 2005-2017 Gentoo Foundation
+.\" Distributed under the terms of the GNU GPL version 2 or later
+.\"
+.TH wine.eselect 5 "April 2017" "Gentoo Linux" eselect
+.SH NAME
+wine.eselect \- Gentoo management module for switching between installed multislot \fBapp-emulation\fR/\fBwine-staging\fR , \fBapp-emulation\fR/\fBwine-vanilla\fR package versions.
+.SH SYNOPSIS
+.B eselect wine \fR[\fBhelp\fR|\fBusage\fR|\fBversion\fR]
+.br
+.B eselect wine deregister\fR\t [\fIvariant\fR]\fB \t\t           \fR[\fB--force\fR]\fB \fR[\fB--verbose\fR]\fB \t \fItarget\fB
+.br
+.B eselect wine list\fR\t\t     [\fIvariant\fR|\fB--all\fR]\fB
+.br
+.B eselect wine register\fR\t   [\fIvariant\fR]\fB \t\t           \fR[\fB--force\fR]\fB \fR[\fB--verbose\fR]\fB \t \fItarget\fB
+.br
+.B eselect wine set\fR\t\t      [\fIvariant\fR]\fB \t\t           \fR[\fB--force\fR]\fB                  \t  \t \t \fItarget\fB
+.br
+.B eselect wine show\fR\t\t     [\fIvariant\fR|\fB--all\fR]\fB
+.br
+.B eselect wine unset\fR\t\t    [\fIvariant\fR|\fB--all\fR]\fB \t \fR[\fB--force\fR]\fB \fR[\fB--clean\fR]\fB
+.br
+.B eselect wine update\fR\t\t   [\fIvariant\fR|\fB--all\fR]\fB \t \fR[\fB--force\fR]\fB \fR[\fB--if-unset\fR]\fB\t \fItarget\fB
+.br
+.TP
+.br
+.TP
+.SH \fIvariant\fR
+.br
+[\fB--staging\fR|\fB--vanilla\fR|\fB--wine\fR*]  (* default)
+.br
+.TP
+.SH \fItarget\fR
+.br
+Fully qualified wine package name and version or it's associated number (as displayed in \fBeselect wine list\fR output).
+.br
+.SH DESCRIPTION
+.PP
+\fBeselect wine\fR \- is the Gentoo management module for switching between installed multislot
+\fBapp-emulation\fR/\fBwine-staging\fR , \fBapp-emulation\fR/\fBwine-vanilla\fR package versions.
+.br
+The currently active package is selectable for each wine variant.
+.br
+
+In addition a \fBwine\fR target is used to select the currently globally active default Wine package version.
+.br
+This active \fBwine\fR target will have symbolic links in global system paths which would directly conflict with the pre-existing \fBapp-emulation\fR/\fBwine\fR:0 package.
+
+This eselect module uses symbolic links in:
+
+   (1) ${EPREFIX}/usr/bin/*
+   (2) ${EPREFIX}/usr/share/applications/*
+   (3) ${EPREFIX}/usr/share/man/*
+
+targeting executable, desktop and manpage files (respectively) - for the currently active package version.
+.br
+
+Details of the installed and currently active Wine package for each wine variant are stored in global configuration files under:
+
+       ${EROOT}/etc/eselect/wine
+
+Records are also maintained of all the symbolic links in place for the currently active Wine packages (for each wine variant) under:
+
+       ${EROOT}/etc/eselect/wine/links
+.br
+
+.PP
+
+.br
+
+.PP
+.br
+.SH ACTION: DEREGISTER
+.B eselect wine deregister \fR[\fIoption\fR] [\fIvariant\fR] \fItarget\fB
+.br
+Deregister a multislot Wine package with the eselect module (** \fIinternal use only\fR **).
+.br
+.TP
+.SH \fIoption
+.br
+\fB--force\fR      Forcibly remove a package.
+.br
+\fB--verbose\fR    Print detailed information about operations being performed.
+.br
+.TP
+.SH \fIvariant
+.br
+\fB--staging\fR    Deregister a package with wine variant 'wine-staging'.
+.br
+\fB--vanilla\fR    Deregister a package with wine variant 'wine-vanilla'.
+.br
+\fB--wine\fR*      Deregister a package with system 'wine' (* default).
+.br
+.TP
+.SH \fItarget
+.br
+\fRFully qualified wine package name and version.
+.br
+
+.br
+
+.br
+.SH ACTION: LIST
+.B eselect wine list [\fIvariant\fR ... [\fIvariant\fR]]
+.br
+Displays an ordered list all available wine versions - for the specified wine variant(s).
+.br
+An asterisk next to one of the list elements denotes the currently active wine (variant) version.
+.br
+.TP
+.SH \fIvariant
+.br
+\fB--all\fR        List all available targets.
+.br
+\fB--staging\fR    List all available wine variant 'wine-staging' targets.
+.br
+\fB--vanilla\fR    List all available wine variant 'wine-vanilla' targets.
+.br
+\fB--wine\fR*      List all available system 'wine' targets (* default).
+.br
+.PP
+.SH ACTION: REGISTER
+.B eselect wine register \fR[\fIoption\fR] [\fIvariant\fR] \fItarget\fB
+.br
+Register a new multislot Wine package with the eselect module (** \fIinternal use only\fR **).
+.br
+.TP
+.SH \fIoption
+.br
+\fB--verbose\fR    Print detailed information about operations being performed.
+.br
+.TP
+.SH \fIvariant
+.br
+\fB--staging\fR    Register a package with wine variant 'wine-staging'.
+.br
+\fB--vanilla\fR    Register a package with wine variant 'wine-vanilla'.
+.br
+\fB--wine\fR*      Register a package with 'wine' (* default).
+.br
+.TP
+.SH \fItarget
+.br
+\fRFully qualified wine package name and version.
+.br
+.SH ACTION: SET
+.B eselect wine set \fR[\fIoption\fR] [\fIvariant\fR] \fItarget\fB
+.br
+Set the symbolic links for a new wine version.
+.br
+May also be used to reset the symbolic links for an existing wine version.
+.br
+.TP
+.SH \fIoption
+.br
+\fB--verbose\fR    Print detailed information about operations being performed.
+.br
+.TP
+.SH \fIvariant
+.br
+\fB--staging\fR    Set only the wine variant 'wine-staging' symbolic links.
+.br
+\fB--vanilla\fR    Set only the wine variant 'wine-vanilla' symbolic links.
+.br
+\fB--wine\fR*      Set only the system 'wine' symbolic links (* default).
+.br
+.TP
+.SH \fItarget
+.br
+\fRFully qualified wine package name and version.
+.br
+.PP
+.SH ACTION: SHOW
+.B eselect wine show [\fIvariant\fR ... [\fIvariant\fR]]
+.br
+Show the active system wine version or wine variant version.
+.TP
+.SH \fIvariant
+.br
+\fB--all\fR        Show the active version for wine and all variants.
+.br
+\fB--staging\fR    Show the active wine variant 'wine-staging' version.
+.br
+\fB--vanilla\fR    Show the active wine variant 'wine-vanilla' version.
+.br
+\fB--wine\fR*      Show the active system 'wine' version (* default).
+.br
+.PP
+.SH ACTION: UNSET
+.B eselect wine unset \fR[\fIoption\fR] [\fIvariant\fR ... [\fIvariant\fR]]
+.br
+Remove all symbolic links from the specified wine variant(s).
+.TP
+.SH \fIoption
+.br
+\fB--clean\fR      Purge any orphaned symbolic links - associated with this module.
+.br
+\fB--verbose\fR    Print detailed information about operations being performed.
+.br
+.TP
+.SH \fIvariant
+.br
+\fB--all\fR        Remove symbolic links from wine and all variants.
+.br
+\fB--staging\fR    Remove the wine variant 'wine-staging' symbolic links.
+.br
+\fB--vanilla\fR    Remove the wine variant 'wine-vanilla' symbolic links.
+.br
+\fB--wine\fR*      Remove the system 'wine' symbolic links (* default).
+.br
+.PP
+.SH ACTION: UPDATE
+.B eselect wine update \fR[\fIoption\fR] [\fIvariant\fR ... [\fIvariant\fR]]
+.br
+Set highest version installed as active - for the specified wine variant(s).
+.TP
+.SH \fIoption
+.br
+\fB--if-unset\fR   Reuse currently selected version if it appears valid.
+.br
+\fB--verbose\fR    Print detailed information about operations being performed.
+.br
+.TP
+.SH \fIvariant
+.br
+\fB--all\fR        Update main active wine and all variants.
+.br
+\fB--staging\fR    Update the wine variant 'wine-staging' symbolic links.
+.br
+\fB--vanilla\fR    Update the wine variant 'wine-vanilla' symbolic links.
+.br
+\fB--wine\fR*      Update the system 'wine' symbolic links (* default).
+.br
+.SH AUTHOR
+Robert Walker <bob.mt.wya@gmail.com>
+.SH SEE ALSO
+.BR eselect (1)
+
