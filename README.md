@@ -151,15 +151,15 @@ eselect wine unset [option]... [variant]...
 Remove all previously created symbolic links - for the specified wine variant(s).
 ```
 option
-    --clean      Purge any orphaned symbolic links - associated with this module.
-    --verbose    Print detailed information about operations being performed.
+    --clean          Purge any orphaned symbolic links - associated with this module.
+    --verbose        Print detailed information about operations being performed.
 ```
 ```
 variant
-    --all        Remove symbolic links from wine and all variants.
-    --staging    Remove the wine variant 'wine-staging' symbolic links.
-    --vanilla    Remove the wine variant 'wine-vanilla' symbolic links.
-    --wine*      Remove the system 'wine' symbolic links (* default).
+    --all            Remove symbolic links from wine and all variants.
+    --staging        Remove the wine variant 'wine-staging' symbolic links.
+    --vanilla        Remove the wine variant 'wine-vanilla' symbolic links.
+    --wine*          Remove the system 'wine' symbolic links (* default).
 ```
 ## ACTION: UPDATE
 ```
@@ -168,14 +168,14 @@ eselect wine update [option]... [variant]...
 Sets the highest installed wine version as the active system version - for the specified wine variant(s).
 ```
 option
-    --if-unset   Reuse currently selected version if it appears valid.
-    --verbose    Print detailed information about operations being performed.
+    --if-unset       Reuse currently selected version if it appears valid.
+    --verbose        Print detailed information about operations being performed.
 ```
 ```
 variant
-    --all        Update main active wine and all variants.
-    --staging    Update the wine variant 'wine-staging' symbolic links.
-    --vanilla    Update the wine variant 'wine-vanilla' symbolic links.
-    --wine*      Update the system 'wine' symbolic links (* default).
+    --all            Update main active wine and all variants.
+    --staging        Update the wine variant 'wine-staging' symbolic links.
+    --vanilla        Update the wine variant 'wine-vanilla' symbolic links.
+    --wine*          Update the system 'wine' symbolic links (* default).
 ```
 
