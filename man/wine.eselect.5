@@ -2,25 +2,25 @@
 .\" Copyright 2005-2017 Gentoo Foundation
 .\" Distributed under the terms of the GNU GPL version 2 or later
 .\"
-.TH wine.eselect 5 "April 2017" "Gentoo Linux" eselect
+.TH wine.eselect 5 "July 2017" "Gentoo Linux" eselect
 .SH NAME
 wine.eselect \- Gentoo management module for switching between installed multislot \fBapp-emulation\fR/\fBwine-staging\fR , \fBapp-emulation\fR/\fBwine-vanilla\fR package versions.
 .SH SYNOPSIS
 .B eselect wine \fR[\fBhelp\fR|\fBusage\fR|\fBversion\fR]
 .br
-.B eselect wine deregister\fR\t [\fIvariant\fR]\fB \t\t           \fR[\fB--force\fR]\fB \fR[\fB--verbose\fR]\fB \t \fItarget\fB
+.B eselect wine deregister\fR\t [\fIvariant\fR]...\fB\t\t\t\fR[\fB--force\fR]\fB \fR[\fB--verbose\fR]\fB \t \fItarget\fB
 .br
-.B eselect wine list\fR\t\t     [\fIvariant\fR|\fB--all\fR]\fB
+.B eselect wine list\fR\t\t     [[\fIvariant\fR]...|\fB--all\fR]\fB
 .br
-.B eselect wine register\fR\t   [\fIvariant\fR]\fB \t\t           \fR[\fB--force\fR]\fB \fR[\fB--verbose\fR]\fB \t \fItarget\fB
+.B eselect wine register\fR\t   [\fIvariant\fR]...\fB\t\t\t\fR[\fB--force\fR]\fB \fR[\fB--verbose\fR]\fB \fR[\fB--commit=\fRCOMMIT]\fB \fR[\fB--date=\fRDATE]\fB \fItarget\fB
 .br
-.B eselect wine set\fR\t\t      [\fIvariant\fR]\fB \t\t           \fR[\fB--force\fR]\fB                  \t  \t \t \fItarget\fB
+.B eselect wine set\fR\t\t      [\fIvariant\fR]\fB\t\t\t\fR[\fB--force\fR]\fB                  \t  \t \t \fItarget\fB
 .br
-.B eselect wine show\fR\t\t     [\fIvariant\fR|\fB--all\fR]\fB
+.B eselect wine show\fR\t\t     [[\fIvariant\fR]...|\fB--all\fR]\fB
 .br
-.B eselect wine unset\fR\t\t    [\fIvariant\fR|\fB--all\fR]\fB \t \fR[\fB--force\fR]\fB \fR[\fB--clean\fR]\fB
+.B eselect wine unset\fR\t\t    [[\fIvariant\fR]...|\fB--all\fR]\fB\t\fR[\fB--force\fR]\fB \fR[\fB--clean\fR]\fB
 .br
-.B eselect wine update\fR\t\t   [\fIvariant\fR|\fB--all\fR]\fB \t \fR[\fB--force\fR]\fB \fR[\fB--if-unset\fR]\fB\t \fItarget\fB
+.B eselect wine update\fR\t\t   [[\fIvariant\fR]...|\fB--all\fR]\fB\t\fR[\fB--force\fR]\fB \fR[\fB--if-unset\fR]\fB\t \fItarget\fB
 .br
 .TP
 .br
@@ -62,6 +62,14 @@ Details of the installed and currently active Wine package for each wine variant
 Records are also maintained of all the symbolic links in place for the currently active Wine packages (for each wine variant) under:
 
        ${EROOT}/etc/eselect/wine/links
+
+Metadata for multislot wine packages is stored in a seperate file for each package:
+
+       ${EROOT}/etc/eselect/wine/${P}
+
+Git commit and commit date are the only currently supported metadata fields (for use with live targets).
+
+These metadata fields are displayed (as additional columns) by the \fBeselect wine list\fR , \fBeselect wine show\fR commands.
 .br
 
 .PP
@@ -71,9 +79,9 @@ Records are also maintained of all the symbolic links in place for the currently
 .PP
 .br
 .SH ACTION: DEREGISTER
-.B eselect wine deregister \fR[\fIoption\fR] [\fIvariant\fR] \fItarget\fB
+.B eselect wine deregister \fR[\fIoption\fR]... \fR[\fIvariant\fR]... \fItarget\fB
 .br
-Deregister a multislot Wine package with the eselect module (** \fIinternal use only\fR **).
+Deregister a multislot wine package with the eselect module - for the specified wine variant(s)  (** \fIinternal use only\fR **).
 .br
 .TP
 .SH \fIoption
@@ -101,42 +109,48 @@ Deregister a multislot Wine package with the eselect module (** \fIinternal use 
 
 .br
 .SH ACTION: LIST
-.B eselect wine list [\fIvariant\fR ... [\fIvariant\fR]]
+.B eselect wine list \fR[\fIvariant\fR]...
 .br
-Displays an ordered list all available wine versions - for the specified wine variant(s).
+Displays an ordered list of all available wine versions - for the specified wine variant(s).
 .br
-An asterisk next to one of the list elements denotes the currently active wine (variant) version.
+An asterisk, next to one of the listed targets, denotes the currently active wine (variant) version.
 .br
 .TP
 .SH \fIvariant
 .br
-\fB--all\fR        List all available targets.
+\fB--all\fR            List all available targets.
 .br
-\fB--staging\fR    List all available wine variant 'wine-staging' targets.
+\fB--staging\fR        List all available wine variant 'wine-staging' targets.
 .br
-\fB--vanilla\fR    List all available wine variant 'wine-vanilla' targets.
+\fB--vanilla\fR        List all available wine variant 'wine-vanilla' targets.
 .br
-\fB--wine\fR*      List all available system 'wine' targets (* default).
+\fB--wine\fR*          List all available system 'wine' targets (* default).
 .br
 .PP
 .SH ACTION: REGISTER
-.B eselect wine register \fR[\fIoption\fR] [\fIvariant\fR] \fItarget\fB
+.B eselect wine register \fR[\fIoption\fR]... \fR[\fIvariant\fR]... \fItarget\fB
 .br
-Register a new multislot Wine package with the eselect module (** \fIinternal use only\fR **).
+Register a new multislot wine package with the eselect module - for the specified wine variant(s)  (** \fIinternal use only\fR **).
+.br
+Metadata fields are typically only used / set for live targets.
 .br
 .TP
 .SH \fIoption
 .br
-\fB--verbose\fR    Print detailed information about operations being performed.
+\fB--commit=\fRCOMMIT  Register a Git commit SHA-1 hash (COMMIT) for the specified target (metadata field).
+.br
+\fB--date=\fRDATE      Register a Git commit date (DATE) for the specified target (metadata field).
+.br
+\fB--verbose\fR        Print detailed information about operations being performed.
 .br
 .TP
 .SH \fIvariant
 .br
-\fB--staging\fR    Register a package with wine variant 'wine-staging'.
+\fB--staging\fR        Register a package with wine variant 'wine-staging'.
 .br
-\fB--vanilla\fR    Register a package with wine variant 'wine-vanilla'.
+\fB--vanilla\fR        Register a package with wine variant 'wine-vanilla'.
 .br
-\fB--wine\fR*      Register a package with 'wine' (* default).
+\fB--wine\fR*          Register a package with 'wine' (* default).
 .br
 .TP
 .SH \fItarget
@@ -144,7 +158,7 @@ Register a new multislot Wine package with the eselect module (** \fIinternal us
 \fRFully qualified wine package name and version.
 .br
 .SH ACTION: SET
-.B eselect wine set \fR[\fIoption\fR] [\fIvariant\fR] \fItarget\fB
+.B eselect wine set \fR[\fIoption\fR] \fR[\fIvariant\fR]...
 .br
 Set the symbolic links for a new wine version.
 .br
@@ -153,16 +167,16 @@ May also be used to reset the symbolic links for an existing wine version.
 .TP
 .SH \fIoption
 .br
-\fB--verbose\fR    Print detailed information about operations being performed.
+\fB--verbose\fR        Print detailed information about operations being performed.
 .br
 .TP
 .SH \fIvariant
 .br
-\fB--staging\fR    Set only the wine variant 'wine-staging' symbolic links.
+\fB--staging\fR        Set only the wine variant 'wine-staging' symbolic links.
 .br
-\fB--vanilla\fR    Set only the wine variant 'wine-vanilla' symbolic links.
+\fB--vanilla\fR        Set only the wine variant 'wine-vanilla' symbolic links.
 .br
-\fB--wine\fR*      Set only the system 'wine' symbolic links (* default).
+\fB--wine\fR*          Set only the system 'wine' symbolic links (* default).
 .br
 .TP
 .SH \fItarget
@@ -171,65 +185,65 @@ May also be used to reset the symbolic links for an existing wine version.
 .br
 .PP
 .SH ACTION: SHOW
-.B eselect wine show [\fIvariant\fR ... [\fIvariant\fR]]
+.B eselect wine show \fR[\fIvariant\fR]...
 .br
-Show the active system wine version or wine variant version.
+Show the active system wine version - for specified wine variant(s).
 .TP
 .SH \fIvariant
 .br
-\fB--all\fR        Show the active version for wine and all variants.
+\fB--all\fR            Show the active version for wine and all variants.
 .br
-\fB--staging\fR    Show the active wine variant 'wine-staging' version.
+\fB--staging\fR        Show the active wine variant 'wine-staging' version.
 .br
-\fB--vanilla\fR    Show the active wine variant 'wine-vanilla' version.
+\fB--vanilla\fR        Show the active wine variant 'wine-vanilla' version.
 .br
-\fB--wine\fR*      Show the active system 'wine' version (* default).
+\fB--wine\fR*          Show the active system 'wine' version (* default).
 .br
 .PP
 .SH ACTION: UNSET
-.B eselect wine unset \fR[\fIoption\fR] [\fIvariant\fR ... [\fIvariant\fR]]
+.B eselect wine unset \fR[\fIoption\fR]... \fR[\fIvariant\fR]...
 .br
-Remove all symbolic links from the specified wine variant(s).
+Remove all previously created symbolic links - for the specified wine variant(s).
 .TP
 .SH \fIoption
 .br
-\fB--clean\fR      Purge any orphaned symbolic links - associated with this module.
+\fB--clean\fR          Purge any orphaned symbolic links - associated with this module.
 .br
-\fB--verbose\fR    Print detailed information about operations being performed.
+\fB--verbose\fR        Print detailed information about operations being performed.
 .br
 .TP
 .SH \fIvariant
 .br
-\fB--all\fR        Remove symbolic links from wine and all variants.
+\fB--all\fR            Remove symbolic links from wine and all variants.
 .br
-\fB--staging\fR    Remove the wine variant 'wine-staging' symbolic links.
+\fB--staging\fR        Remove the wine variant 'wine-staging' symbolic links.
 .br
-\fB--vanilla\fR    Remove the wine variant 'wine-vanilla' symbolic links.
+\fB--vanilla\fR        Remove the wine variant 'wine-vanilla' symbolic links.
 .br
-\fB--wine\fR*      Remove the system 'wine' symbolic links (* default).
+\fB--wine\fR*          Remove the system 'wine' symbolic links (* default).
 .br
 .PP
 .SH ACTION: UPDATE
-.B eselect wine update \fR[\fIoption\fR] [\fIvariant\fR ... [\fIvariant\fR]]
+.B eselect wine update \fR[\fIoption\fR]... \fR[\fIvariant\fR]...
 .br
-Set highest version installed as active - for the specified wine variant(s).
+Sets the highest installed wine version as the active system version - for the specified wine variant(s).
 .TP
 .SH \fIoption
 .br
-\fB--if-unset\fR   Reuse currently selected version if it appears valid.
+\fB--if-unset\fR       Reuse currently selected version if it appears valid.
 .br
-\fB--verbose\fR    Print detailed information about operations being performed.
+\fB--verbose\fR        Print detailed information about operations being performed.
 .br
 .TP
 .SH \fIvariant
 .br
-\fB--all\fR        Update main active wine and all variants.
+\fB--all\fR            Update main active wine and all variants.
 .br
-\fB--staging\fR    Update the wine variant 'wine-staging' symbolic links.
+\fB--staging\fR        Update the wine variant 'wine-staging' symbolic links.
 .br
-\fB--vanilla\fR    Update the wine variant 'wine-vanilla' symbolic links.
+\fB--vanilla\fR        Update the wine variant 'wine-vanilla' symbolic links.
 .br
-\fB--wine\fR*      Update the system 'wine' symbolic links (* default).
+\fB--wine\fR*          Update the system 'wine' symbolic links (* default).
 .br
 .SH AUTHOR
 Robert Walker <bob.mt.wya@gmail.com>

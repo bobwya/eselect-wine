@@ -9,7 +9,7 @@ inherit config multilib tests
 
 DESCRIPTION="Manage active wine version"
 MAINTAINER="bob.mt.wya@gmail.com"
-VERSION="1.2"
+VERSION="1.3"
 
 
 # Declare global constants
@@ -24,6 +24,7 @@ declare -ar	G_WINE_MAN_ARRAY=( "man1/msiexec.1" "man1/notepad.1" "man1/regedit.1
 								"man1/winebuild.1" "man1/winecfg.1" "man1/wineconsole.1" "man1/winecpp.1" "man1/winedbg.1" "man1/winefile.1" \
 								"man1/wineg++.1" "man1/winegcc.1" "man1/winemine.1" "man1/winepath.1" "man1/wineserver.1" "man1/wmc.1" "man1/wrc.1"
 							)
+declare -ar G_WINE_SETTINGS_ARRAY=( "--date" "--commit" )
 declare 	G_TOTAL_WINE_VARIANTS=${#G_WINE_VARIANTS_ARRAY[@]}
 
 # Declare global variables
@@ -143,7 +144,7 @@ sort_versions()
 	# (1) Prepend version string (column 1)
 	# (2) Apply version sort
 	# (3) Remove prepended version string (column 1)
-	sed 's/^\([-[:alpha:]]\+\-\)\([.[:digit:]]\+\)\(\|\_p[[:digit:]]\+\)$/\2\3 &/' \
+	sed 's/^\([-[:alpha:]]\+\-\)\([.[:digit:]]\+\)\(\|\_p[[:digit:]]\+\|\_rc[[:digit:]]\+\)$/\2\3 &/' \
 		| LC_ALL=C ${vsort} \
 		| awk '{print $2}'
 }
@@ -182,6 +183,23 @@ list_remove_item()
 		fi
 	done
 	echo "${list[@]}"
+}
+
+# get_list_item_max_length()
+#	1..N>	items-array (string array)
+# Description:
+#	Outputs maximum length of all list items to stdout.
+get_list_item_max_length()
+{
+	(($# < 1))		&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (1-)"
+
+	local -a list=( ${@} )
+	local item max_length=0
+	for i in "${!list[@]}"; do
+		item="${list[i]}"
+		max_length=$(( (${#item}>max_length) ? ${#item} : max_length ))
+	done
+	echo "${max_length}"
 }
 ########## general utility functions (end)  ##########
 
@@ -252,29 +270,47 @@ get_target_status()
 # validate_exported_function_parameters()
 #	1>: call stack index - used for error messages (integer)
 #	2<>		: options (array reference)
-#	3<		: variants (array reference)
-#	4<		: [target]
-#	5..n>	: original function parameters
+#	3<		: settings (array reference)
+#	4<		: variants (array reference)
+#	5<		: [target]
+#	6..n>	: original function parameters
 # Description:
 #	Generic function to validate function parameters passed to the calling function.
 #	Options accepted by the calling function can be set.
 #	An optional target parameter can be tested for.
 validate_exported_function_parameters()
 {
-	(($# < 4))		&& die "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (4-)"
+	(($# < 5))		&& die "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (5-)"
 
-	declare -n options_array_reference="${2}" variants_array_reference="${3}"
-	local csi="${1}" has_target=0 has_all=0 i target_count=0 variant_selected_total
-	if [[ "${4}" =~ ${G_VARIABLE_REGEX} ]]; then
-		has_target=1
-		declare -n target_reference="${4}"
+	declare -n options_array_reference="${2}" variants_array_reference="${4}"
+	local csi="${1}" settings_array_reference="${3}" \
+			has_settings=0 has_target=0 has_all=0 multiple_variants=1 target_count=0 \
+			i option variant_selected_total 
+
+	local -a settings_array_available=( )
+	if [[ "${3}" =~ ${G_VARIABLE_REGEX} ]]; then
+		has_settings=1
+		declare -n settings_array_reference="${3}"
+		settings_array_available=( "${settings_array_reference[@]}" )
 	fi
-	shift 4
+	if [[ "${5}" =~ ${G_VARIABLE_REGEX} ]]; then
+		has_target=1
+		declare -n target_reference="${5}"
+	fi
+	shift 5
 
-	local -a	options_array_selected=( ) \
+	local -a	settings_array_return=( ) \
+				settings_array_selected=( ) \
+				options_array_selected=( ) \
 				options_array_available=( "${options_array_reference[@]}" ) \
 				variants_array_selected=( )
-	has "--all" "${options_array_reference[@]}"		&& has_all=1
+	if has "--all" "${options_array_reference[@]}"; then
+		has_all=1
+	fi
+
+	if [[ "${FUNCNAME[csi]}" != "do_deregister" && "${FUNCNAME[csi]}" != "do_register" ]]; then
+		multiple_variants=$((has_all))
+	fi
 
 	while (( $# > 0 )); do
 		if [[ -z "${1}" ]]; then
@@ -290,11 +326,19 @@ validate_exported_function_parameters()
 			fi
 		elif has "${1}" "${G_VARIANT_OPTIONS[@]}"; then
 			variant_array_selected_total="${#variants_array_selected[@]}"
-			if (( ! has_all && (variant_array_selected_total > 0) )); then
+			if (( ! multiple_variants && (variant_array_selected_total > 0) )); then
 				die -q "${FUNCNAME[csi]}(): Please specify one variant option only: variant option '${1}' invalid"
 			elif ! has "${1}" "${variants_array_selected[@]}"; then
 				variants_array_selected+=("${1}")
 			fi
+		elif has "${1%%=*}" "${settings_array_available[@]}"; then
+			option="${1%%=*}"
+			if has "${option}" "${settings_array_selected[@]}"; then
+				die -q "${FUNCNAME[csi]}(): Option '${option}' specified more than once"
+			fi
+			settings_array_available=( $(list_remove_item "${option}" "${settings_array_available[@]}") )
+			settings_array_selected+=( "${option}" )
+			settings_array_return+=( "${1#--}" )
 		elif has "${1}" "${options_array_available[@]}"; then
 			if has "${1}" "${options_array_selected[@]}"; then
 				die -q "${FUNCNAME[csi]}(): Option '${1}' specified more than once"
@@ -336,6 +380,7 @@ validate_exported_function_parameters()
 
 	# Pass selected options array, variants array and (optionally) target values by reference
 	options_array_reference=(  "${options_array_selected[@]}"  )
+	((has_settings)) && settings_array_reference=( "${settings_array_return[@]}" )
 	variants_array_reference=( "${variants_array_selected[@]}" )
 }
 
@@ -433,7 +478,7 @@ validate_symlinks()
 	local csi="${1}" symlink_config symlink_variables target variant variable verbose_arg
 	local -a variants_array=( ) options_array=( "--verbose" )
 
-	validate_exported_function_parameters $((csi+1)) "options_array" "variants_array" . "${@:2}"
+	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" . "${@:2}"
 	# shellcheck disable=SC2068
 	has "--verbose" ${options_array[@]} && verbose_arg="--verbose"
 	variant="${variants_array[0]#--}"
@@ -582,7 +627,7 @@ remove_symlinks()
 	local csi="${1}" active installed symlink symlinks symlink_variables variable variant verbose_arg
 	local -a variants_array=( ) options_array=( "--verbose" "--clean" )
 
-	validate_exported_function_parameters $((csi+1)) "options_array" "variants_array" . "${@:2}"
+	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" . "${@:2}"
 	variant="${variants_array[0]#--}"
 	# shellcheck disable=SC2068
 	has "--clean" ${options_array[@]}	&& remove_orphaned_bin_symlinks $((csi+1)) "${variant}"
@@ -679,7 +724,7 @@ set_symlinks()
 	local csi="${1}" binary_file link links manual_path target variant verbose_arg
 	local -a variants_array=( ) options_array=( "--verbose" )
 
-	validate_exported_function_parameters $((csi+1)) "options_array" "variants_array" "target" "${@:2}"
+	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" "target" "${@:2}"
 	# shellcheck disable=SC2068
 	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
 	variant="${variants_array[0]#--}"
@@ -729,7 +774,7 @@ get_active()
 	local csi="${1}" active variant
 	local -a variants_array=( ) options_array=( )
 
-	validate_exported_function_parameters $((csi+1)) "options_array" "variants_array" . "${@:2}"
+	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" . "${@:2}"
 	variant="${variants_array[0]#--}"
 
 	active=$(load_config "${G_CONFIG_DIRECTORY}/active" "${variant}")
@@ -748,7 +793,7 @@ get_installed_targets()
 	local csi="${1}" installed variant
 	local -a variants_array=( ) options_array=( )
 
-	validate_exported_function_parameters $((csi+1)) "options_array" "variants_array" . "${@:2}"
+	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" . "${@:2}"
 	variant="${variants_array[0]#--}"
 	installed=$(load_config "${G_CONFIG_DIRECTORY}/installed" "${variant}")
 	sort_list "${installed[@]}"
@@ -779,6 +824,8 @@ describe_register_options()
 
 # do_register()
 # 	>	[--verbose]
+#	>	[--commit=<commit>]
+#	>	[--date=<date>]
 #	>	variant= --wine | --staging | --vanilla
 #	>	target=index (integer) | name (string)
 # Description:
@@ -786,27 +833,33 @@ describe_register_options()
 #	(** internal use only **)
 do_register()
 {
-	local installed_list target targets total_targets variant verbose_arg
-	local -a variants_array=( ) options_array=( "--verbose" )
+	local installed_list is iv setting target targets total_targets variant verbose_arg
+	local -a variants_array=( ) settings_array=( "${G_WINE_SETTINGS_ARRAY[@]}" ) options_array=( "--verbose" )
 
-	validate_exported_function_parameters 1 "options_array" "variants_array" "target" "${@}"
+	validate_exported_function_parameters 1 "options_array" "settings_array" "variants_array" "target" "${@}"
 	# shellcheck disable=SC2068
 	has "--verbose" ${options_array[@]}	&& verbose_arg="--verbose"
-	variant="${variants_array[0]#--}"
+	for (( iv=0 ; iv<${#variants_array[@]} ; ++iv )); do
+		variant="${variants_array[iv]#--}"
 
-	# Is target already installed?
-	installed_list=$(get_installed_targets 1 "${variants_array[0]}")
+		# Is target already installed?
+		installed_list=$(get_installed_targets 1 "${variants_array[iv]}")
 
-	# shellcheck disable=SC2086
-	if ! has "${target}" ${installed_list}; then
-		installed_list=($(sort_list "${installed_list} ${target}"))
-		store_config "${G_CONFIG_DIRECTORY}/installed" "${variant}" "${installed_list[@]}"
-		if [[ ! -z "${verbose_arg}" ]]; then
-			printf "%s\n" "${FUNCNAME[0]}(): Successfully added target '${target}' to $(get_wine_variant_decription "${variant}") installed list"
+		# shellcheck disable=SC2086
+		if ! has "${target}" ${installed_list}; then
+			installed_list=($(sort_list "${installed_list} ${target}"))
+			store_config "${G_CONFIG_DIRECTORY}/installed" "${variant}" "${installed_list[@]}"
+			if [[ ! -z "${verbose_arg}" ]]; then
+				printf "%s\n" "${FUNCNAME[0]}(): Successfully added target '${target}' to $(get_wine_variant_decription "${variant}") installed list"
+			fi
+		elif [[ ! -z "${verbose_arg}" ]]; then
+			printf "%s\n" "${FUNCNAME[0]}(): Target '${target}' already in $(get_wine_variant_decription "${variant}") installed list"
 		fi
-	elif [[ ! -z "${verbose_arg}" ]]; then
-		printf "%s\n" "${FUNCNAME[0]}(): Target '${target}' already in $(get_wine_variant_decription "${variant}") installed list"
-	fi
+		for (( is=0 ; is<${#settings_array[@]} ; ++is )); do
+			setting="${settings_array[is]}"
+			store_config "${G_CONFIG_DIRECTORY}/${target}" "${setting%%=*}" "${setting#*=}"
+		done
+	done
 }
 
 describe_deregister()
@@ -843,24 +896,30 @@ do_deregister()
 	local installed_list target targets total_targets variant verbose_arg
 	local -a variants_array=( ) options_array=( "--force" "--verbose" )
 
-	validate_exported_function_parameters 1 "options_array" "variants_array" "target" "${@}"
+	validate_exported_function_parameters 1 "options_array" . "variants_array" "target" "${@}"
 	# shellcheck disable=SC2068
 	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
-	variant="${variants_array[0]#--}"
+	for (( i=0 ; i<${#variants_array[@]} ; ++i )); do
+		variant="${variants_array[i]#--}"
 
-	installed_list=$(get_installed_targets 1 "${variants_array[0]}")
+		installed_list=$(get_installed_targets 1 "${variants_array[i]}")
 
-	# shellcheck disable=SC2086
-	if ! has "${target}" ${installed_list}; then
-		die -q "${FUNCNAME[0]}(): ${target} is not registered for $(get_wine_variant_decription "${variant}")"
-	fi
+		# shellcheck disable=SC2086
+		if ! has "${target}" ${installed_list}; then
+			die -q "${FUNCNAME[0]}(): ${target} is not registered for $(get_wine_variant_decription "${variant}")"
+		fi
 
-	if [[ "${target}" == "$(get_active 1 "${variants_array[0]}")" ]]; then
-		do_unset "${variants_array[0]}" "${verbose_arg}"
-	fi
+		if [[ "${target}" == "$(get_active 1 "${variants_array[i]}")" ]]; then
+			do_unset "${variants_array[i]}" "${verbose_arg}"
+		fi
 
-	installed_list=$(list_remove_item "${target}" "${installed_list}")
-	store_config "${G_CONFIG_DIRECTORY}/installed" "${variant}" "${installed_list}"
+		installed_list=$(list_remove_item "${target}" "${installed_list}")
+		store_config "${G_CONFIG_DIRECTORY}/installed" "${variant}" "${installed_list}"
+		
+		if [[ -f "${G_CONFIG_DIRECTORY}/${target}" ]]; then
+			rm -f "${G_CONFIG_DIRECTORY}/${target}"
+		fi
+	done
 }
 
 ### list action ###
@@ -885,25 +944,46 @@ describe_list_options()
 #	Return sorted list of files installed for a particular wine variant.
 do_list()
 {
-	local active i il installed_list installed_list_total
+	local active il iv installed_list installed_list_total \
+		line_length max_length padding
 	local -a variants_array=( ) options_array=( "--all" )
 
-	validate_exported_function_parameters 1 "options_array" "variants_array" . "${@}"
+	validate_exported_function_parameters 1 "options_array" . "variants_array" . "${@}"
 
-	for (( i=0 ; i<${#variants_array[@]} ; ++i )); do
-		((i>0)) && printf "\n"
-		write_list_start "Available $(get_wine_variant_decription "${variants_array[i]}") versions:"
-		installed_list=($(get_installed_targets 1 "${variants_array[i]}"))
-		active=$(get_active 1 "${variants_array[i]}")
+	for (( iv=0 ; iv<${#variants_array[@]} ; ++iv )); do
+		((iv>0)) && printf "\n"
+		write_list_start "Available $(get_wine_variant_decription "${variants_array[iv]}") versions:"
+		installed_list=($(get_installed_targets 1 "${variants_array[iv]}"))
+		active=$(get_active 1 "${variants_array[iv]}")
 
+		# shellcheck disable=SC2068
+		max_length=$(get_list_item_max_length ${installed_list[@]} )
+		: $(( max_length=2+((max_length<25) ? 25 : max_length) ))
 		installed_list_total=${#installed_list[@]}
-		if (( installed_list_total > 0 )); then
-			for (( il = 0 ; il < installed_list_total ; il++ )); do
-				[[ "${installed_list[il]}" = "${active}" ]]	&& installed_list[il]=$(highlight_marker "${installed_list[il]}")
+		for (( il = 0 ; il < installed_list_total ; il++ )); do
+			target="${installed_list[il]}"
+			line_length=$((${#target}))
+			if [[ "${target}" = "${active}" ]]; then
+				installed_list[il]=$(highlight_marker "${target}")
+				: $((line_length+=2))
+			fi
+			[[ -f "${G_CONFIG_DIRECTORY}/${target}" ]] || continue
+
+			# shellcheck disable=SC2068
+			for setting in ${G_WINE_SETTINGS_ARRAY[@]}; do
+				setting="${setting#--}"
+				value="$(load_config "${G_CONFIG_DIRECTORY}/${target}" "${setting}")"
+				[[ -z "${value}" ]] && continue
+
+				if ((line_length)); then
+					padding="$(printf "%*s" $((line_length-max_length)) "")"
+					installed_list[il]="${installed_list[il]}${padding}"
+					line_length=0
+				fi
+				installed_list[il]="${installed_list[il]}  ${value}"
 			done
-		else
-			unset -v installed_list
-		fi
+		done
+		(( installed_list_total == 0 )) && unset -v installed_list
 
 		write_numbered_list -m "(none found)" "${installed_list[@]}"
 	done
@@ -931,10 +1011,10 @@ describe_show_options()
 #	Show the active wine version for the specified wine variant(s).
 do_show()
 {
-	local active i variant
+	local active i line setting value variant
 	local -a variants_array=( ) options_array=( "--all" )
 
-	validate_exported_function_parameters 1 "options_array" "variants_array" . "${@}"
+	validate_exported_function_parameters 1 "options_array" . "variants_array" . "${@}"
 
 	for (( i=0 ; i<${#variants_array[@]} ; ++i )); do
 		((i>0)) && printf "\n"
@@ -943,8 +1023,18 @@ do_show()
 		variant="wine-${variant#wine}"
 		write_list_start "Active ${variant%-} version:"
 		active=$(get_active 1 "${variants_array[i]}")
+		line="${active}    "
+		if [[ -f "${G_CONFIG_DIRECTORY}/${active}" ]]; then
+			# shellcheck disable=SC2068
+			for setting in ${G_WINE_SETTINGS_ARRAY[@]}; do
+				setting="${setting#--}"
+				value="$(load_config "${G_CONFIG_DIRECTORY}/${active}" "${setting}")"
+				[[ -z "${value}" ]] && continue
 
-		write_kv_list_entry "${active}" ""
+				line="${line}  ${value}"
+			done
+		fi
+		write_kv_list_entry "${line}" ""
 		if [[ "${active}" != "(unset)" ]]; then
 			validate_symlinks 1 "${variants_array[i]}"
 		fi
@@ -980,7 +1070,7 @@ do_unset()
 	local i variant clean_arg verbose_arg
 	local -a variants_array=( ) options_array=( "--all" "--clean" "--verbose" )
 
-	validate_exported_function_parameters 1 "options_array" "variants_array" . "${@}"
+	validate_exported_function_parameters 1 "options_array" . "variants_array" . "${@}"
 	# shellcheck disable=SC2068
 	has "--clean" ${options_array[@]}	&& clean_arg="--clean"
 	# shellcheck disable=SC2068
@@ -1030,7 +1120,7 @@ do_set()
 	local installed_list target variant verbose_arg
 	local -a variants_array=( ) options_array=( "--verbose" )
 
-	validate_exported_function_parameters 1 "options_array" "variants_array" "target" "${@}"
+	validate_exported_function_parameters 1 "options_array" . "variants_array" "target" "${@}"
 	# shellcheck disable=SC2068
 	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
 	variant="${variants_array[0]#--}"
@@ -1055,9 +1145,9 @@ describe_update_options()
 {
 	local variant
 	for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
-		printf "%s\n" "--${variant} : Update symbolic links for $(get_wine_variant_decription "${variant}")"
+		printf "%s\n" "--${variant} : Update (refresh) symbolic links for $(get_wine_variant_decription "${variant}")"
 	done
-	printf "%s\n" "--all : Update symbolic links for 'wine' and all variant(s)"
+	printf "%s\n" "--all : Update (refresh) symbolic links for 'wine' and all variant(s)"
 	printf "%s\n" "--if-unset : Reuse currently selected version if it appears valid"
 	printf "%s\n" "--verbose : Print detailed information about operations performed"
 }
@@ -1073,7 +1163,7 @@ do_update()
 	local active i installed target unset_arg verbose_arg
 	local -a variants_array=( ) options_array=( "--if-unset" "--all" "--verbose" )
 
-	validate_exported_function_parameters 1 "options_array" "variants_array" . "${@}"
+	validate_exported_function_parameters 1 "options_array" . "variants_array" . "${@}"
 		# shellcheck disable=SC2068
 	has "--if-unset" ${options_array[@]}	&& unset_arg="--if-unset"
 		# shellcheck disable=SC2068

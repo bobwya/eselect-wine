@@ -4,13 +4,13 @@
 ## SYNOPSIS
 ```
 eselect wine [help|usage|version]
-eselect wine deregister   [variant]           [--force] [--verbose]    target
-eselect wine list         [variant|--all]
-eselect wine register     [variant]           [--force] [--verbose]    target
-eselect wine set          [variant]           [--force]                target
-eselect wine show         [variant|--all]
-eselect wine unset        [variant|--all]     [--force] [--clean]
-eselect wine update       [variant|--all]     [--force] [--if-unset]   target
+eselect wine deregister    [variant]...        [--force] [--verbose]    target
+eselect wine list         [[variant]...|--all]
+eselect wine register      [variant]...        [--force] [--verbose] [--commit=COMMIT] [--date=DATE] target
+eselect wine set           [variant]           [--force]                target
+eselect wine show         [[variant]...|--all]
+eselect wine unset        [[variant]...|--all] [--force] [--clean]
+eselect wine update       [[variant]...|--all] [--force] [--if-unset]   target
 ```
 ```
 variant
@@ -18,7 +18,7 @@ variant
 ```
 ```
 target
-    Fully qualified wine package name and version or it's associated number (as displayed in eselect wine list output).
+    Fully qualified wine package name and version or it's associated number (as displayed in **eselect wine list** output).
 ```
 
 ## DESCRIPTION
@@ -48,21 +48,29 @@ Records are also maintained of all the symbolic links in place for the currently
 ```
   ${EROOT}/etc/eselect/wine/links
 ```
+Metadata for multislot wine packages is stored in a separate file for each package:
+```
+  ${EROOT}/etc/eselect/wine/${P}
+```
+Git commit and commit date are the only currently supported metadata fields (for use with live targets).
+
+These metadata fields are displayed (as additional columns) by the **eselect wine list** , **eselect wine show** commands.
+
 ## ACTION: DEREGISTER
 ```
-eselect wine deregister [option] [variant] target
+eselect wine deregister [option]... [variant]... target
 ```
-Deregister a multislot Wine package with the eselect module (**_internal use only_**).
+Deregister a multislot Wine package with the eselect module - for the specified wine variant(s)  (**_internal use only_**).
 ```
 option
-    --force      Forcibly remove a package.
-    --verbose    Print detailed information about operations being performed.
+    --force          Forcibly remove a package.
+    --verbose        Print detailed information about operations being performed.
 ```
 ```
 variant
-    --staging    Deregister a package with wine variant 'wine-staging'.
-    --vanilla    Deregister a package with wine variant 'wine-vanilla'.
-    --wine*      Deregister a package with system 'wine' (* default).
+    --staging        Deregister a package with wine variant 'wine-staging'.
+    --vanilla        Deregister a package with wine variant 'wine-vanilla'.
+    --wine*          Deregister a package with system 'wine' (* default).
 ```
 ```
 target
@@ -70,31 +78,34 @@ target
 ```
 
 ## ACTION: LIST
-```       eselect wine list [variant ... [variant]]
+```       eselect wine list [variant]...
 ```
-Displays an ordered list all available wine versions - for the specified wine variant(s).
-An asterisk next to one of the list elements denotes the currently active wine (variant) version.
+Displays an ordered list of all available wine versions - for the specified wine variant(s).
+An asterisk, next to one of the listed targets, denotes the currently active wine (variant) version.
 ```
 variant
-    --all        List all available targets.
-    --staging    List all available wine variant 'wine-staging' targets.
-    --vanilla    List all available wine variant 'wine-vanilla' targets.
-    --wine*      List all available system 'wine' targets (* default).
+    --all            List all available targets.
+    --staging        List all available wine variant 'wine-staging' targets.
+    --vanilla        List all available wine variant 'wine-vanilla' targets.
+    --wine*          List all available system 'wine' targets (* default).
 ```
 ## ACTION: REGISTER
 ```
-eselect wine register [option] [variant] target
+eselect wine register [option]... [variant]... target
 ```
-Register a new multislot Wine package with the eselect module (**_internal use only_**).
+Register a new multislot Wine package with the eselect module - for the specified wine variant(s)  (**_internal use only_**).
+Metadata fields are typically only used / set for live targets.
 ```
 option
-    --verbose    Print detailed information about operations being performed.
+    --commit=COMMIT  Register a Git commit SHA-1 hash (COMMIT) for the specified target (metadata field).
+    --date=DATE      Register a Git commit date (DATE) for the specified target (metadata field).
+    --verbose        Print detailed information about operations being performed.
 ```
 ```
 variant
-    --staging    Register a package with wine variant 'wine-staging'.
-    --vanilla    Register a package with wine variant 'wine-vanilla'.
-    --wine*      Register a package with 'wine' (* default).
+    --staging        Register a package with wine variant 'wine-staging'.
+    --vanilla        Register a package with wine variant 'wine-vanilla'.
+    --wine*          Register a package with 'wine' (* default).
 ```
 ```
 target
@@ -108,13 +119,13 @@ Set the symbolic links for a new wine version.
 May also be used to reset the symbolic links for an existing wine version.
 ```
 option
-    --verbose    Print detailed information about operations being performed.
+    --verbose        Print detailed information about operations being performed.
 ```
 ```
 variant
-    --staging    Set only the wine variant 'wine-staging' symbolic links.
-    --vanilla    Set only the wine variant 'wine-vanilla' symbolic links.
-    --wine*      Set only the system 'wine' symbolic links (* default).
+    --staging        Set only the wine variant 'wine-staging' symbolic links.
+    --vanilla        Set only the wine variant 'wine-vanilla' symbolic links.
+    --wine*          Set only the system 'wine' symbolic links (* default).
 ```
 ```
 target
@@ -123,21 +134,21 @@ target
 
 ## ACTION: SHOW
 ```
-eselect wine show [variant ... [variant]]
+eselect wine show [variant]...
 ```
-Show the active system wine version or wine variant version.
+Show the active system wine version - for specified wine variant(s).
 ```
 variant
-    --all        Show the active version for wine and all variants.
-    --staging    Show the active wine variant 'wine-staging' version.
-    --vanilla    Show the active wine variant 'wine-vanilla' version.
-    --wine*      Show the active system 'wine' version (* default).
+    --all            Show the active version for wine and all variants.
+    --staging        Show the active wine variant 'wine-staging' version.
+    --vanilla        Show the active wine variant 'wine-vanilla' version.
+    --wine*          Show the active system 'wine' version (* default).
 ```
 ## ACTION: UNSET
 ```
-eselect wine unset [option] [variant ... [variant]]
+eselect wine unset [option]... [variant]...
 ```
-Remove all symbolic links from the specified wine variant(s).
+Remove all previously created symbolic links - for the specified wine variant(s).
 ```
 option
     --clean      Purge any orphaned symbolic links - associated with this module.
@@ -152,9 +163,9 @@ variant
 ```
 ## ACTION: UPDATE
 ```
-eselect wine update [option] [variant ... [variant]]
+eselect wine update [option]... [variant]...
 ```
-Set highest version installed as active - for the specified wine variant(s).
+Sets the highest installed wine version as the active system version - for the specified wine variant(s).
 ```
 option
     --if-unset   Reuse currently selected version if it appears valid.
