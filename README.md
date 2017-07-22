@@ -61,7 +61,7 @@ Metadata for multislot wine packages is stored in a separate file for each packa
 ```
 Git commit and commit date are the only currently supported metadata fields (for use with live targets).
 
-These metadata fields are displayed (as additional columns) by the **eselect wine list** / **eselect wine show** commands.
+These metadata fields are displayed (as additional columns) by the **eselect wine list** and **eselect wine show** commands.
 
 ## ACTION: DEREGISTER
 ```
