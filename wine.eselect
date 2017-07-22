@@ -235,21 +235,22 @@ is_target_index_valid()
 }
 
 # get_target_status()
-#	1>: call stack index - used for error messages (integer)
-#	2>		: target=${P} (string)
+#	 1>: call stack index - used for error messages (integer)
+#	 2>: target=${P} (string)
+#   [3>: ignore_no_active - if set then don't display an error message for an (unset) target]
 #	return <: 0=valid / 1=invalid
 # Description:
 #	Verify that key files and directories exist for the specified target.
 get_target_status()
 {
-	(($# != 2))	&& die "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (2)"
+	(( ($# < 2) || ($# > 3) ))	&& die "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (2-3)"
 	
-	local csi="${1}" target="${2}" is_error=1
+	local csi="${1}" target="${2}" ignore_no_active="${3}" is_error=1
 
 	set_dir_env "${target}"
 
 	if [[ "${target}" == "(unset)" ]]; then
-		write_error_msg "${FUNCNAME[csi]}(): no active target"
+		[[ -z "${ignore_no_active}" ]] && write_error_msg "${FUNCNAME[csi]}(): no active target"
 	elif [[ ! -d "${wine_bin_directory}" ]]; then
 		write_error_msg "${FUNCNAME[csi]}(): Local variant directory '${wine_bin_directory}' does not exist"
 	elif [[ ! -x "${wine_bin_directory}" || ! -r "${wine_bin_directory}" ]]; then
@@ -308,7 +309,7 @@ validate_exported_function_parameters()
 		has_all=1
 	fi
 
-	if [[ "${FUNCNAME[csi]}" != "do_deregister" && "${FUNCNAME[csi]}" != "do_register" ]]; then
+	if [[ ! "${FUNCNAME[csi]}" =~ do_deregister|do_register|do_set ]]; then
 		multiple_variants=$((has_all))
 	fi
 
@@ -776,7 +777,6 @@ get_active()
 
 	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" . "${@:2}"
 	variant="${variants_array[0]#--}"
-
 	active=$(load_config "${G_CONFIG_DIRECTORY}/active" "${variant}")
 	echo "${active:-(unset)}"
 }
@@ -1104,91 +1104,50 @@ describe_set_options()
 	for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
 		printf "%s\n" "--${variant} : Set only the $(get_wine_variant_decription "${variant}") symbolic links"
 	done
+	printf "%s\n" "--if-unset : Don't set specified target if a valid existing target is already set (for each selected wine variant)"
 	printf "%s\n" "--verbose : Print detailed information about operations performed"
 	printf "%s\n" "target : A fully qualified wine variant or (eselect wine list) entry number"
 }
 
 # do_set()
+#	>	[--if-unset]
 #	>	[--verbose]
-#	>	variant= --wine | --staging | --vanilla
+#	>	variant(+)=  --wine | --staging | --vanilla
 #	>	target=index (integer) | name (string)
 # Description:
 #	Unset currently active version for the specified wine variant.
 #	Set up symbolic links for the specified target.
+#   If the "--if-unset" option is specified do not change the active target for wine variants
+#   where a pre-existing target is set.
 do_set()
 {
-	local installed_list target variant verbose_arg
-	local -a variants_array=( ) options_array=( "--verbose" )
+	local active i installed_list target variant unset_arg verbose_arg
+	local -a variants_array=( ) options_array=( "--if-unset" "--verbose" )
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" "target" "${@}"
 	# shellcheck disable=SC2068
-	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
-	variant="${variants_array[0]#--}"
-
-	if ! do_unset "${variants_array[0]}" "${verbose_arg}"; then
-		die -q "${FUNCNAME[0]}(): Failed to unset active target"
-	elif ! set_symlinks 1 "${variants_array[0]}" "${target}" "${verbose_arg}"; then
-		die -q "${FUNCNAME[0]}(): Couldn't set $(get_wine_variant_decription "${variant}") symbolic links"
-	fi
-
-	store_config "${G_CONFIG_DIRECTORY}/active" "${variant}" "${target}"
-}
-
-### update action ###
-
-describe_update()
-{
-	printf "%s\n" "Set highest version installed as active"
-}
-
-describe_update_options()
-{
-	local variant
-	for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
-		printf "%s\n" "--${variant} : Update (refresh) symbolic links for $(get_wine_variant_decription "${variant}")"
-	done
-	printf "%s\n" "--all : Update (refresh) symbolic links for 'wine' and all variant(s)"
-	printf "%s\n" "--if-unset : Reuse currently selected version if it appears valid"
-	printf "%s\n" "--verbose : Print detailed information about operations performed"
-}
-
-# do_update()
-#	>	[--if-unset]
-#	>	[--verbose]
-#	>	variant (+)= --wine | --staging | --vanilla | --all
-# Description:
-#	Update the symbolic links for all specified wine variants.
-do_update()
-{
-	local active i installed target unset_arg verbose_arg
-	local -a variants_array=( ) options_array=( "--if-unset" "--all" "--verbose" )
-
-	validate_exported_function_parameters 1 "options_array" . "variants_array" . "${@}"
-		# shellcheck disable=SC2068
 	has "--if-unset" ${options_array[@]}	&& unset_arg="--if-unset"
-		# shellcheck disable=SC2068
+	# shellcheck disable=SC2068
 	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
 
 	for (( i=0 ; i<${#variants_array[@]} ; ++i )); do
+		variant="${variants_array[i]#--}"
 		active=$(get_active 1 "${variants_array[i]}")
-
 		if [[ ! -z "${unset_arg}" ]] \
-			&& get_target_status 1 "${active}" \
-			&& validate_symlinks 1 "${variants_array[i]}" "${verbose_arg}"
+ 				&& get_target_status 1 "${active}" "1" \
+				&& validate_symlinks 1 "${variants_array[i]}" "${verbose_arg}"
 		then
 			continue
 		fi
 
-		installed=($(get_installed_targets 1 "${variants_array[i]}"))
-		if ((${#installed[@]} == 0)); then
-			printf "%s\n"  "Skipping $(get_wine_variant_decription "${variants_array[i]}"). No registered targets found."
-			continue
+		if ! do_unset "${variants_array[i]}" "${verbose_arg}"; then
+			die -q "${FUNCNAME[0]}(): Failed to unset active target"
+		elif ! set_symlinks 1 "${variants_array[i]}" "${target}" "${verbose_arg}"; then
+			die -q "${FUNCNAME[0]}(): Couldn't set $(get_wine_variant_decription "${variant}") symbolic links"
 		fi
 
-		target="${installed[-1]}"
-		if ! do_set "${variants_array[i]}" "${target}" "${verbose_arg}"; then
-			die -q "${FUNCNAME[0]}(): Couldn't set new $(get_wine_variant_decription "${variants_array[i]}") symbolic links"
-		fi
+		store_config "${G_CONFIG_DIRECTORY}/active" "${variant}" "${target}"
 	done
 }
+
 
