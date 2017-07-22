@@ -7,10 +7,9 @@ eselect wine [help|usage|version]
 eselect wine deregister    [variant]...        [--force] [--verbose]    target
 eselect wine list         [[variant]...|--all]
 eselect wine register      [variant]...        [--force] [--verbose] [--commit=COMMIT] [--date=DATE] target
-eselect wine set           [variant]           [--force]                target
+eselect wine set           [variant]...        [--force] [--if-unset]   target
 eselect wine show         [[variant]...|--all]
 eselect wine unset        [[variant]...|--all] [--force] [--clean]
-eselect wine update       [[variant]...|--all] [--force] [--if-unset]   target
 ```
 ```
 variant
@@ -19,6 +18,14 @@ variant
 ```
 target
     Fully qualified wine package name and version or it's associated number (as displayed in **eselect wine list** output).
+```
+```
+COMMIT
+    SHA-1 Git commit for a live build of app-emulation/wine-staging / app-emulation/wine-vanilla.
+```
+```
+DATE
+    Git commit date for a live build of app-emulation/wine-staging / app-emulation/wine-vanilla.
 ```
 
 ## DESCRIPTION
@@ -54,7 +61,7 @@ Metadata for multislot wine packages is stored in a separate file for each packa
 ```
 Git commit and commit date are the only currently supported metadata fields (for use with live targets).
 
-These metadata fields are displayed (as additional columns) by the **eselect wine list** , **eselect wine show** commands.
+These metadata fields are displayed (as additional columns) by the **eselect wine list** / **eselect wine show** commands.
 
 ## ACTION: DEREGISTER
 ```
@@ -113,12 +120,13 @@ target
 ```
 ## ACTION: SET
 ```
-eselect wine set [option] [variant] target
+eselect wine set [option]... [variant]... target
 ```
-Set the symbolic links for a new wine version.
+Set the symbolic links for a new wine target version - for the specified wine variant(s).
 May also be used to reset the symbolic links for an existing wine version.
 ```
 option
+    --if-unset       Don't set specfied target if a valid existing target is already set (for each selected wine variant).
     --verbose        Print detailed information about operations being performed.
 ```
 ```
@@ -161,21 +169,5 @@ variant
     --vanilla        Remove the wine variant 'wine-vanilla' symbolic links.
     --wine*          Remove the system 'wine' symbolic links (* default).
 ```
-## ACTION: UPDATE
-```
-eselect wine update [option]... [variant]...
-```
-Sets the highest installed wine version as the active system version - for the specified wine variant(s).
-```
-option
-    --if-unset       Reuse currently selected version if it appears valid.
-    --verbose        Print detailed information about operations being performed.
-```
-```
-variant
-    --all            Update main active wine and all variants.
-    --staging        Update the wine variant 'wine-staging' symbolic links.
-    --vanilla        Update the wine variant 'wine-vanilla' symbolic links.
-    --wine*          Update the system 'wine' symbolic links (* default).
-```
+
 
