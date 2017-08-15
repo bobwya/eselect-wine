@@ -481,7 +481,7 @@ validate_symlinks()
 	#	1>	call stack index - used for error messages (integer)
 	#	2>	variant =	--wine | --staging | --vanilla
 	#	3>	target =	name (string)
-	#	4>	variable =	bin | applications | man
+	#	4>	variable =	applications | binaries | include | libraries | manuals
 	#	5>	[--verbose]
 	# Description:
 	#	Verify that symlinks are valid for a single variable, for a single wine variant.
