@@ -15,12 +15,13 @@ VERSION="1.5"
 # Declare global constants
 declare -r	G_VARIABLE_REGEX="^[_[:alpha:]][_[:alnum:]]*$"
 declare -r	G_CONFIG_DIRECTORY="${EROOT%/}/etc/eselect/wine"
-declare -ar	G_WINE_VARIANTS_ARRAY=( "staging" "vanilla" "wine"  )
-declare -ar G_WINE_BIN_ARRAY=( "msidb" "msiexec" "notepad" "regedit" "regsvr32" "widl" "wine" "wine64" "wine64-preloader" "wineboot" "winebuild" \
-										"winecfg" "wineconsole" "winecpp" "winedbg" "winefile" "wineg++" "winegcc" "winemine" "winepath" "wine-preloader" \
-										"wineserver" "wmc" "wrc"
+declare -ar	G_WINE_VARIANTS_ARRAY=( "staging" "vanilla" "wine" )
+declare -ar G_CONFIG_VARIABLES=( "applications" "binaries" "include" "libraries" "manuals" )
+declare -ar G_WINE_BIN_ARRAY=(	"msidb" "msiexec" "notepad" "regedit" "regsvr32" "widl" "wine" "wine64" "wine64-preloader" "wineboot" "winebuild" \
+								"winecfg" "wineconsole" "winecpp" "winedbg" "winefile" "wineg++" "winegcc" "winemine" "winepath" "wine-preloader" \
+								"wineserver" "wmc" "wrc"
 							)
-declare -ar	G_WINE_MAN_ARRAY=( "man1/msiexec.1" "man1/notepad.1" "man1/regedit.1" "man1/regsvr32.1" "man1/widl.1" "man1/wine.1" "man1/wineboot.1" \
+declare -ar	G_WINE_MAN_ARRAY=(	"man1/msiexec.1" "man1/notepad.1" "man1/regedit.1" "man1/regsvr32.1" "man1/widl.1" "man1/wine.1" "man1/wineboot.1" \
 								"man1/winebuild.1" "man1/winecfg.1" "man1/wineconsole.1" "man1/winecpp.1" "man1/winedbg.1" "man1/winefile.1" \
 								"man1/wineg++.1" "man1/winegcc.1" "man1/winemine.1" "man1/winepath.1" "man1/wineserver.1" "man1/wmc.1" "man1/wrc.1"
 							)
@@ -49,18 +50,20 @@ set_dir_env()
 {
 	(($# > 1))	&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (0-1)"
 
+	export global_prefix_directory="${EPREFIX}/usr"
+	export global_applications_directory="${global_prefix_directory}/share/applications"
+	export global_binaries_directory="${global_prefix_directory}/bin"
+	export global_include_directory="${global_prefix_directory}/include"
+	export global_manuals_directory="${global_prefix_directory}/share/man"
 	if [[ ! -z "${1}" ]]; then
 		local target="${1}"
 
-		export wine_bin_directory="${EPREFIX}/usr/lib/${target}/bin"
-		export wine_include_directory="${EPREFIX}/usr/include/${target}/wine"
-		export wine_share_directory="${EPREFIX}/usr/share/${target}"
+		export wine_binaries_directory="${global_prefix_directory}/lib/${target}/bin"
+		export wine_include_directory="${global_prefix_directory}/include/${target}"
+		export wine_share_directory="${global_prefix_directory}/share/${target}"
 		export wine_applications_directory="${wine_share_directory}/applications"
-		export wine_man_directory="${wine_share_directory}/man"
+		export wine_manuals_directory="${wine_share_directory}/man"
 	fi
-	export global_applications_directory="${EPREFIX}/usr/share/applications"
-	export global_bin_directory="${EPREFIX}/usr/bin"
-	export global_man_directory="${EPREFIX}/usr/share/man"
 }
 
 # unset_dir_env()
@@ -68,8 +71,8 @@ set_dir_env()
 # 	Unset our envariant variables.
 unset_dir_env()
 {
-	unset -v wine_{bin,include,share,app,man}_directory
-	unset -v global_{applications,bin,man}_directory
+	unset -v wine_{binaries,include,share,applications,manuals}_directory
+	unset -v global_{applications,bin,include,manuals,prefix}_directory
 }
 
 # expand_path()
@@ -202,7 +205,6 @@ get_list_item_max_length()
 	echo "${max_length}"
 }
 
-
 # columnate_colourised_text()
 #	1>		column alignment (string)
 #	stdin>	multi-column input - with embedded colour codes in any column
@@ -333,14 +335,14 @@ get_target_status()
 
 	if [[ "${target}" == "(unset)" ]]; then
 		[[ -z "${ignore_no_active}" ]] && write_error_msg "${FUNCNAME[csi]}(): no active target"
-	elif [[ ! -d "${wine_bin_directory}" ]]; then
-		write_error_msg "${FUNCNAME[csi]}(): Local variant directory '${wine_bin_directory}' does not exist"
-	elif [[ ! -x "${wine_bin_directory}" || ! -r "${wine_bin_directory}" ]]; then
-		write_error_msg "${FUNCNAME[csi]}(): Local variant directory '${wine_bin_directory}' does not have read access enabled"
-	elif [[ ! -e "${wine_bin_directory}/wine" ]]; then
-		write_error_msg "${FUNCNAME[csi]}(): Local variant binary '${wine_bin_directory}' does not exist"
-	elif [[ ! -e "${EPREFIX}/usr/bin/${target}" ]]; then
-		write_error_msg "${FUNCNAME[csi]}(): Global variant binary '${EPREFIX}/usr/bin/${target}' does not exist"
+	elif [[ ! -d "${wine_binaries_directory}" ]]; then
+		write_error_msg "${FUNCNAME[csi]}(): Local variant directory '${wine_binaries_directory}' does not exist"
+	elif [[ ! -x "${wine_binaries_directory}" || ! -r "${wine_binaries_directory}" ]]; then
+		write_error_msg "${FUNCNAME[csi]}(): Local variant directory '${wine_binaries_directory}' does not have read access enabled"
+	elif [[ ! -e "${wine_binaries_directory}/wine" ]]; then
+		write_error_msg "${FUNCNAME[csi]}(): Local variant binary '${wine_binaries_directory}' does not exist"
+	elif [[ ! -e "${global_binaries_directory}/${target}" ]]; then
+		write_error_msg "${FUNCNAME[csi]}(): Global variant binary '${global_binaries_directory}/${target}' does not exist"
 	else
 		is_error=0
 	fi
@@ -490,7 +492,7 @@ validate_symlinks()
 		local	csi="${1}" variant="${2#--}" target="${3}" variable="${4}" verbose_arg="${5:-}"
 		local	-a symlinks
 		local	relative_variant_directory relative_variant_file_base relative_variant_file_extension relative_variant_path relative_variant_path \
-				file global_path relative_global_directory symlink variant_path variant_suffix
+				file global_path lib relative_global_directory symlink variant_path variant_suffix
 
 		[[ "${variant}" != "wine" ]]	&& variant_suffix="-${variant}"
 
@@ -516,16 +518,16 @@ validate_symlinks()
 			fi
 
 			case "${variable}" in
-				bin)
+				binaries)
 					variant_path="${symlink%${variant_suffix}}"
 					variant_path="${variant_path}${target#wine}"
-					if [[ "${target_file}" != "${variant_path}" ]]; then
+					if [ "${target_file}" != "${variant_path}" ]; then
 						write_error_msg "${FUNCNAME[csi]}(): Symbolic link ('${symlink}' -> '${target_file}'): broken/invalid link"
 						return 1
 					fi
 					;;
 
-				applications|man)
+				applications|include|manuals)
 					# Compare relative path within wine variant directory tree (symbolic link target)
 					# to relative path in global directory tree (symbolic link source).
 					# Add a variant suffix (for wine variants) to the relative variant path - prior to this test.
@@ -539,7 +541,29 @@ validate_symlinks()
 					global_path="$(canonicalise "${!global_path}")"
 					relative_global_path="${symlink#${global_path}}"
 
-					if [[ "${relative_variant_path}" != "${relative_global_path}" ]]; then
+					if [ "${relative_variant_path}" != "${relative_global_path}" ]; then
+						write_error_msg "${FUNCNAME[csi]}(): Symbolic link ('${symlink}' -> '${target_file}'): link target ('${target_file}') is not associated with any wine package"
+						return 1
+					fi
+					;;
+
+				libraries)
+					# Compare relative path within wine variant directory tree (symbolic link target)
+					# to relative path in global directory tree (symbolic link source).
+					# Add a variant suffix (for wine variants) to the relative variant path - prior to this test.
+					for lib in $(list_libdirs); do
+						[[ -L "${global_prefix_directory}/${lib}" ]] && continue
+
+						variant_path="${global_prefix_directory}/${lib}/${target}"
+						relative_variant_path="${target_file#${variant_path}}"
+
+						global_path="${global_prefix_directory}/${lib}"
+						relative_global_path="${symlink#${global_path}}"
+						[ "${variant}" != "wine" ] && relative_global_path="${relative_global_path%-${variant}}"
+
+						[ "${relative_variant_path}" = "${relative_global_path}" ] && break
+					done
+					if [ "${relative_variant_path}" != "${relative_global_path}" ]; then
 						write_error_msg "${FUNCNAME[csi]}(): Symbolic link ('${symlink}' -> '${target_file}'): link target ('${target_file}') is not associated with any wine package"
 						return 1
 					fi
@@ -584,15 +608,14 @@ validate_symlinks()
 		return 1
 	fi
 
-	local -a variable_set=( "applications" "bin" "man" )
-	for variable in "${variable_set[@]}"; do
+	for variable in "${G_CONFIG_VARIABLES[@]}"; do
 		# shellcheck disable=SC2068
 		if has "${variable}" ${symlink_variables[@]}; then
 			symlink_variables=$(list_remove_item "${variable}" "${symlink_variables}")
 		else
 			printf "%s\n%s\n" \
 				"${FUNCNAME[csi]}(): Missing '${variable}' in $(get_wine_variant_decription "${variant}") configuration..." \
-				"Please re-run: eselect wine update|set"
+				"Please re-run: eselect wine set"
 		fi
 	done
 
@@ -660,11 +683,11 @@ remove_orphaned_bin_symlinks()
 	fi
 	remove_symlink $((csi+1)) "${global_applications_directory%/}/wine.desktop" "${variant}"
 	for relative_path in "${G_WINE_BIN_ARRAY[@]}"; do
-		remove_symlink $((csi+1)) "${global_bin_directory%/}/${relative_path}" "${variant}"
+		remove_symlink $((csi+1)) "${global_binaries_directory%/}/${relative_path}" "${variant}"
 	done
 	for relative_path in "${G_WINE_MAN_ARRAY[@]}"; do
-		remove_symlink $((csi+1)) "${global_man_directory%/}/${relative_path}" "${variant}"
-		remove_symlink $((csi+1)) "${global_man_directory%/}/${relative_path}" "${variant}" 1
+		remove_symlink $((csi+1)) "${global_manuals_directory%/}/${relative_path}" "${variant}"
+		remove_symlink $((csi+1)) "${global_manuals_directory%/}/${relative_path}" "${variant}" 1
 	done
 
 	unset_dir_env
@@ -672,8 +695,9 @@ remove_orphaned_bin_symlinks()
 
 # remove_symlinks()
 #	1>	call stack index - used for error messages (integer)
-#	>	[--verbose]
 #	>	[--clean]
+#	>	[--force]
+#	>	[--verbose]
 #	>	variant = --wine | --staging | --vanilla
 # Description:
 #	Remove all the symbolic links for the specified wine variant.
@@ -683,13 +707,14 @@ remove_symlinks()
 	#	1>: call stack index - used for error messages (integer)
 	#	2>	symbolic-link (string)
 	#	3>	variant = [--]wine | [--]staging | [--]vanilla
-	#	4>	[--verbose]
+	#	4>	[--force]
+	#	5>	[--verbose]
 
 	remove_symlink()
 	{
-		(( ($# < 3) || ($# > 4) ))	&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (3-4)"
+		(( ($# < 3) || ($# > 5) ))	&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (3-5)"
 
-		local csi="${1}" symlink="${2}" variant="${3#--}" verbose_arg="${4:-}"
+		local csi="${1}" symlink="${2}" variant="${3#--}" force_arg="${4:-}" verbose_arg="${5:-}"
 
 		if [[ ! -e "${symlink}" ]]; then
 			printf "%s\n" "Symbolic link ('${symlink}') not found for $(get_wine_variant_decription "${variant}")"
@@ -697,9 +722,17 @@ remove_symlinks()
 			local error_type
 			[[ -f "${symlink}" ]] && error_type="regular file"
 			[[ -d "${symlink}" ]] && error_type="directory"
-			die -q "${FUNCNAME[csi]}(): Symbolic link ('${symlink}') is not a valid symbolic link (${error_type})."
+			if [[ -z "${force_arg}" ]]; then
+				die -q "${FUNCNAME[csi]}(): Symbolic link ('${symlink}') is not a valid symbolic link (${error_type})."
+			else
+				write_warning_msg "${FUNCNAME[csi]}(): Symbolic link ('${symlink}') is not a valid symbolic link (${error_type})."
+			fi
 		elif ! rm -f "${symlink}"; then
-			die "${FUNCNAME[csi]}(): Failed to remove symbolic link ('${symlink}')"
+			if [[ -z "${force_arg}" ]]; then
+				die "${FUNCNAME[csi]}(): Failed to remove symbolic link ('${symlink}')"
+			else
+				write_warning_msg"${FUNCNAME[csi]}(): Failed to remove symbolic link ('${symlink}')"
+			fi
 		elif [[ ! -z "${verbose_arg}" ]]; then
 			printf "${FUNCNAME[csi]}(): %s\n" "Removed symbolic link ('${symlink}') for $(get_wine_variant_decription "${variant}")..."
 		fi
@@ -707,31 +740,33 @@ remove_symlinks()
 
 	(($# < 1))		&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (1-)"
 
-	local csi="${1}" active installed symlink symlinks symlink_variables variable variant verbose_arg
-	local -a variants_array=( ) options_array=( "--verbose" "--clean" )
+	local csi="${1}" active force_arg installed symlink symlinks symlink_variables variable variant verbose_arg
+	local -a variants_array=( ) options_array=( "--clean" "--force" "--verbose"  )
 
 	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" . "${@:2}"
 	variant="${variants_array[0]#--}"
 	# shellcheck disable=SC2068
 	has "--clean" ${options_array[@]}	&& remove_orphaned_bin_symlinks $((csi+1)) "${variant}"
 	# shellcheck disable=SC2068
+	has "--force" ${options_array[@]}	&& force_arg="--force"
+	# shellcheck disable=SC2068
 	has "--verbose" ${options_array[@]}	&& verbose_arg="--verbose"
 
 	symlink_variables=$(load_config "${G_CONFIG_DIRECTORY}/links/${variant}" "symlink_directories")
 	if [[ -z "${symlink_variables}" ]]; then
-		printf "%s\n" "${FUNCNAME[csi]}(): Missing listing of  $(get_wine_variant_decription "${variant}") symlink_directories variables"
-		return 1
+		write_warning_msg "${FUNCNAME[csi]}(): Missing listing of  $(get_wine_variant_decription "${variant}") symlink_directories variables"
+		[[ -z "${force_arg}" ]] && return 1
 	fi
 
 	# shellcheck disable=SC2068
 	for variable in ${symlink_variables[@]}; do
 		symlinks=$(load_config "${G_CONFIG_DIRECTORY}/links/${variant}" "${variable}")
-		if [[ -z "${symlinks}" ]]; then
+		if [[ -z "${symlinks}" && -z "${force_arg}" ]]; then
 			die -q "${FUNCNAME[csi]}(): Missing listing of '${variable}' symbolic links for $(get_wine_variant_decription "${variant}")"
 		fi
 
 		for symlink in ${symlinks[@]}; do
-			remove_symlink $((csi+1)) "${symlink}" "${variant}" "${verbose_arg}"
+			remove_symlink $((csi+1)) "${symlink}" "${variant}" "${force_arg}" "${verbose_arg}"
 			symlinks=$(list_remove_item "${symlink}" "${symlinks}")
 		done
 		store_config "${G_CONFIG_DIRECTORY}/links/${variant}" "${variable}" "${symlinks}"
@@ -744,11 +779,14 @@ remove_symlinks()
 	# Remove active if it exists
 	store_config "${G_CONFIG_DIRECTORY}/active" "${variant}" ""
 
-	desktop_database_update "${verbose_arg}" || die "${FUNCNAME[csi]}(): Failed to update xorg desktop database"
+	if ! desktop_database_update "${verbose_arg}"; then
+		[[ -z "${force_arg}" ]] && die "${FUNCNAME[csi]}(): Failed to update xorg desktop database"
+	fi
 }
 
 # set_symlinks()
 #	1>: call stack index - used for error messages (integer)
+#	>	[--force]
 #	>	[--verbose]
 #	>	variant	= --wine | --staging | --vanilla
 #	>	target	= index (integer) | name (string)
@@ -761,15 +799,16 @@ set_symlinks()
 	#	2>	symbolic-link-target (path string)
 	#	3<>	symbolic-link (path string) - reference
 	#	4>	variant = [--]wine | [--]staging | [--]vanilla
-	#	5>	[--verbose]
+	#	5>	[--force]
+	#	6>	[--verbose]
 	set_symlink()
 	{
-		(( ($# < 4) || ($# > 5) ))	&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (4-5)"
+		(( ($# < 4) || ($# > 6) ))	&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (4-6)"
 		if [[ ! "${3}" =~ ${G_VARIABLE_REGEX} ]]; then
 			die -q "${FUNCNAME[0]}(): Invalid (reference) variable name parameter: '${3}'"
 		fi
 
-		local csi="${1}" link_target="${2}" variant="${4#--}" verbose_arg="${5:-}"
+		local csi="${1}" link_target="${2}" variant="${4#--}" force_arg="${5:-}" verbose_arg="${6:-}"
 		declare -n link_reference="${3}"
 		local link_directory link_file link_file_base link_file_extension variant_suffix
 
@@ -781,8 +820,8 @@ set_symlinks()
 		link_reference="${link_directory}/${link_file_base}${variant_suffix}${link_file_extension}"
 
 		if [[ ! -e "${link_target}" ]]; then
-			printf "%s\n" "${FUNCNAME[csi]}(): Symbolic link target ('${link_target}') does not exist - for $(get_wine_variant_decription "${variant}") ... Cleaning up."
-			remove_symlinks $((csi)) "--${variant}" "${verbose_arg}"
+			write_warning_msg "${FUNCNAME[csi]}(): Symbolic link target ('${link_target}') does not exist - for $(get_wine_variant_decription "${variant}") ... Cleaning up."
+			remove_symlinks $((csi)) "--${variant}" "${force_arg}" "${verbose_arg}"
 			return 1
 		fi
 		if [[ -L "${link_reference}" ]]; then
@@ -794,8 +833,8 @@ set_symlinks()
 			mkdir -p "${link_directory}" || die -q "${FUNCNAME[csi]}(): Failed to make directory: '${link_directory}'"
 		fi
 		if ! ln -sf "${link_target}" "${link_reference}"; then
-			printf "%s\n" "${FUNCNAME[csi]}(): Failed to set symbolic link from ('${link_reference}' -> '${link_target}') for $(get_wine_variant_decription "${variant}") ... Cleaning up."
-			remove_symlinks $((csi)) "--${variant}" "${verbose_arg}"
+			write_warning_msg"${FUNCNAME[csi]}(): Failed to set symbolic link from ('${link_reference}' -> '${link_target}') for $(get_wine_variant_decription "${variant}") ... Cleaning up."
+			remove_symlinks $((csi)) "--${variant}" "${force_arg}" "${verbose_arg}"
 			return 1
 		elif [[ ! -z "${verbose_arg}" ]]; then
 			printf "%s\n" "${FUNCNAME[csi]}(): Created symbolic link from ('${link_reference}' -> '${link_target}') for $(get_wine_variant_decription "${variant}") ..."
@@ -804,41 +843,66 @@ set_symlinks()
 
 	(($# < 1))		&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (1-)"
 
-	local csi="${1}" binary_file link links manual_path target variant verbose_arg
-	local -a variants_array=( ) options_array=( "--verbose" )
+	local csi="${1}" binary_file first=true force_arg lib link links manual_path target variant verbose_arg
+	local -a variants_array=( ) options_array=( "--force" "--verbose" )
 
 	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" "target" "${@:2}"
+	# shellcheck disable=SC2068
+	has "--force" ${options_array[@]}		&& force_arg="--force"
 	# shellcheck disable=SC2068
 	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
 	variant="${variants_array[0]#--}"
 
 	set_dir_env "${target}"
 
-	store_config "${G_CONFIG_DIRECTORY}/links/${variant}" "symlink_directories" "applications"
-	store_config "${G_CONFIG_DIRECTORY}/links/${variant}" "applications" ""
-	link="${EPREFIX}/usr/share/applications/wine.desktop"
-	set_symlink $((csi+1)) "${wine_applications_directory}/wine.desktop" "link" "${variant}" "${verbose_arg}"
-	store_config "${G_CONFIG_DIRECTORY}/links/${variant}" "applications" "${link}"
+	for variable in "${G_CONFIG_VARIABLES[@]}"; do
+		links=""
+		((first)) && store_config "${G_CONFIG_DIRECTORY}/links/${variant}" "symlink_directories" "${variable}"
+		((first)) || append_config "${G_CONFIG_DIRECTORY}/links/${variant}" "symlink_directories" "${variable}"
+		store_config "${G_CONFIG_DIRECTORY}/links/${variant}" "${variable}" ""
+		case "${variable}" in
+			applications)
+				links="${global_applications_directory}/wine.desktop"
+				set_symlink $((csi+1)) "${wine_applications_directory}/wine.desktop" "links" "${variant}" "${force_arg}" "${verbose_arg}"
+				;;
 
-	links=""
-	append_config "${G_CONFIG_DIRECTORY}/links/${variant}" "symlink_directories" "bin"
-	store_config "${G_CONFIG_DIRECTORY}/links/${variant}" "bin" ""
-	while IFS= read -r -d '' binary_file; do
-		link="${EPREFIX}/usr/bin/${binary_file}"
-		set_symlink $((csi+1)) "${EPREFIX}/usr/bin/${binary_file}${target##wine}" "link" "${variant}" "${verbose_arg}"
-		links="${links} ${link}"
-	done < <(find "${wine_bin_directory}" -mindepth 1 -maxdepth 1 \( -type f -o -type l \) -printf '%P\0')
-	append_config "${G_CONFIG_DIRECTORY}/links/${variant}" "bin" "${links}"
+			binaries)
+				while IFS= read -r -d '' binary_file; do
+					link="${global_binaries_directory}/${binary_file}"
+					set_symlink $((csi+1)) "${global_binaries_directory}/${binary_file}${target##wine}" "link" "${variant}" "${force_arg}" "${verbose_arg}"
+					links="${links} ${link}"
+				done < <(find "${wine_binaries_directory}" -mindepth 1 -maxdepth 1 \( -type f -o -type l \) -printf '%P\0' 2>/dev/null)
+				;;
 
-	links=""
-	append_config "${G_CONFIG_DIRECTORY}/links/${variant}" "symlink_directories" "man"
-	store_config "${G_CONFIG_DIRECTORY}/links/${variant}" "man" ""
-	while IFS= read -r -d '' manual_path; do
-		link="${EPREFIX}/usr/share/man/${manual_path}"
-		set_symlink $((csi+1)) "${wine_man_directory}/${manual_path}" "link" "${variant}" "${verbose_arg}"
-		links="${links} ${link}"
-	done < <(find "${wine_man_directory}" -mindepth 1 -maxdepth 2 -type f -printf '%P\0')
-	append_config "${G_CONFIG_DIRECTORY}/links/${variant}" "man" "${links}"
+			libraries)
+				for lib in $(list_libdirs); do
+					# Check global library path is not just a symbolic link
+					# Don't assume wine is built with full multilib support
+					[[ -L "${global_prefix_directory}/${lib}" || ! -d "${global_prefix_directory}/${lib}/${target}/wine" ]] && continue
+
+					link="${global_prefix_directory}/${lib}/wine"
+					set_symlink $((csi+1)) "${global_prefix_directory}/${lib}/${target}/wine" "link" "${variant}" "${force_arg}" "${verbose_arg}"
+					links="${links} ${link}"
+				done
+				;;
+
+			include)
+				links="${global_include_directory}/wine"
+				set_symlink $((csi+1)) "${wine_include_directory}/wine" "links" "${variant}" "${force_arg}" "${verbose_arg}"
+				;;
+
+			manuals)
+				while IFS= read -r -d '' manual_path; do
+					link="${global_manuals_directory}/${manual_path}"
+					set_symlink $((csi+1)) "${wine_manuals_directory}/${manual_path}" "link" "${variant}" "${force_arg}" "${verbose_arg}"
+					links="${links} ${link}"
+				done < <(find "${wine_manuals_directory}" -mindepth 1 -maxdepth 2 -type f -printf '%P\0' 2>/dev/null)
+				;;
+		esac
+		((first)) && store_config "${G_CONFIG_DIRECTORY}/links/${variant}" "${variable}" "${links}"
+		((first)) || append_config "${G_CONFIG_DIRECTORY}/links/${variant}" "${variable}" "${links}"
+		first=false
+	done
 
 	desktop_database_update "${verbose_arg}" || die "${FUNCNAME[csi]}(): Failed to update xorg desktop database"
 
@@ -975,10 +1039,12 @@ describe_deregister_options()
 #	(** internal use only **)
 do_deregister()
 {
-	local installed_list target targets total_targets variant verbose_arg
+	local force_arg installed_list target targets total_targets variant verbose_arg
 	local -a variants_array=( ) options_array=( "--force" "--verbose" )
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" "target" "${@}"
+	# shellcheck disable=SC2068
+	has "--force"	${options_array[@]}		&& force_arg="--force"
 	# shellcheck disable=SC2068
 	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
 	for (( i=0 ; i<${#variants_array[@]} ; ++i )); do
@@ -992,7 +1058,7 @@ do_deregister()
 		fi
 
 		if [[ "${target}" == "$(get_active 1 "${variants_array[i]}")" ]]; then
-			do_unset "${variants_array[i]}" "${verbose_arg}"
+			do_unset "${variants_array[i]}" "${force_arg}" "${verbose_arg}"
 		fi
 
 		installed_list=$(list_remove_item "${target}" "${installed_list}")
@@ -1127,29 +1193,33 @@ describe_unset_options()
 	done
 	printf "%s\n" "--all : Remove symbolic links for the currently active 'wine' version and all variant versions"
 	printf "%s\n" "--clean : Purge any orphaned symbolic links - associated with this module"
+	printf "%s\n" "--force : Forcibly remove symbolic links - ignore errors"
 	printf "%s\n" "--verbose : Print detailed information about operations performed"
 }
 
 # do_unset()
 #		[--clean]
+#		[--force]
 #	>	[--verbose]
 #	>	variant (+)= --wine | --staging | --vanilla | --all
 # Description:
 #	Remove wine symbolic links for all specified wine variants.
 do_unset()
 {
-	local i variant clean_arg verbose_arg
-	local -a variants_array=( ) options_array=( "--all" "--clean" "--verbose" )
+	local i variant clean_arg force_arg verbose_arg
+	local -a variants_array=( ) options_array=( "--all" "--clean" "--force" "--verbose" )
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" . "${@}"
 	# shellcheck disable=SC2068
 	has "--clean" ${options_array[@]}	&& clean_arg="--clean"
 	# shellcheck disable=SC2068
-	has "--verbose" ${options_array[@]}	&& verbose_arg="--verbose"
+	has "--force"	${options_array[@]}		&& force_arg="--force"
+	# shellcheck disable=SC2068
+	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
 
 	for (( i=0 ; i<${#variants_array[@]} ; ++i )); do
 		variant="${variants_array[i]#--}"
-		if ! remove_symlinks 1 "${variants_array[i]}" "${verbose_arg}" "${clean_arg}"; then
+		if ! remove_symlinks 1 "${variants_array[i]}" "${clean_arg}" "${force_arg}" "${verbose_arg}"; then
 			printf "%s\n" "${FUNCNAME[0]}(): Couldn't remove $(get_wine_variant_decription "${variant}") symbolic links"
 			continue
 		fi
@@ -1175,6 +1245,7 @@ describe_set_options()
 	for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
 		printf "%s\n" "--${variant} : Set only the $(get_wine_variant_decription "${variant}") symbolic links"
 	done
+	printf "%s\n" "--force : Forcibly set symbolic links - ignore errors"
 	printf "%s\n" "--if-unset : Don't set specified target if a valid existing target is already set (for each selected wine variant)"
 	printf "%s\n" "--verbose : Print detailed information about operations performed"
 	printf "%s\n" "target : A fully qualified wine variant or (eselect wine list) entry number"
@@ -1183,6 +1254,7 @@ describe_set_options()
 # do_set()
 #	>	[--if-unset]
 #	>	[--verbose]
+#	>	[--force]
 #	>	variant(+)=  --wine | --staging | --vanilla
 #	>	target=index (integer) | name (string)
 # Description:
@@ -1192,10 +1264,12 @@ describe_set_options()
 #   where a pre-existing target is set.
 do_set()
 {
-	local active i installed_list target variant unset_arg verbose_arg
-	local -a variants_array=( ) options_array=( "--if-unset" "--verbose" )
+	local active i installed_list force_arg target variant unset_arg verbose_arg
+	local -a variants_array=( ) options_array=( "--if-unset" "--verbose" "--force" )
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" "target" "${@}"
+	# shellcheck disable=SC2068
+	has "--force"	${options_array[@]}		&& force_arg="--force"
 	# shellcheck disable=SC2068
 	has "--if-unset" ${options_array[@]}	&& unset_arg="--if-unset"
 	# shellcheck disable=SC2068
@@ -1211,9 +1285,9 @@ do_set()
 			continue
 		fi
 
-		if ! do_unset "${variants_array[i]}" "${verbose_arg}"; then
+		if ! do_unset "${variants_array[i]}" "${force_arg}" "${verbose_arg}"; then
 			die -q "${FUNCNAME[0]}(): Failed to unset active target"
-		elif ! set_symlinks 1 "${variants_array[i]}" "${target}" "${verbose_arg}"; then
+		elif ! set_symlinks 1 "${variants_array[i]}" "${target}" "${force_arg}" "${verbose_arg}"; then
 			die -q "${FUNCNAME[0]}(): Couldn't set $(get_wine_variant_decription "${variant}") symbolic links"
 		fi
 
