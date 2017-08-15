@@ -6,7 +6,7 @@
 eselect wine [help|usage|version]
 eselect wine deregister    [variant]...        [--force] [--verbose]    target
 eselect wine list         [[variant]...|--all]
-eselect wine register      [variant]...        [--force] [--verbose] [--commit=COMMIT] [--date=DATE] target
+eselect wine register      [variant]...                  [--verbose] [--commit=COMMIT] [--date=DATE] target
 eselect wine set           [variant]...        [--force] [--if-unset]   target
 eselect wine show         [[variant]...|--all]
 eselect wine unset        [[variant]...|--all] [--force] [--clean]
@@ -17,7 +17,7 @@ variant
 ```
 ```
 target
-    Fully qualified wine package name and version or it's associated number (as displayed in **eselect wine list** output).
+    Fully qualified wine package name and version or it's associated number (refer to: **eselect wine list** output).
 ```
 ```
 COMMIT
@@ -42,10 +42,12 @@ This active wine target will have symbolic links in global system paths which wo
 This eselect module uses symbolic links in:
 ```
   ${EPREFIX}/usr/bin/*
+  ${EPREFIX}/usr/lib{32,64}/*
+  ${EPREFIX}/usr/include/wine/*
   ${EPREFIX}/usr/share/applications/*
   ${EPREFIX}/usr/share/man/*
 ```
-targeting executable, desktop and manpage files (respectively) - for the currently active package version.
+targeting *executable*, *library*, *include* headers, *desktop*, and *manpage* files (respectively) - for the currently active package version.
 
 Details of the installed and currently active Wine package for each wine variant are stored in global configuration files under:
 ```
@@ -126,6 +128,7 @@ Set the symbolic links for a new wine target version - for the specified wine va
 May also be used to reset the symbolic links for an existing wine version.
 ```
 option
+    --force          Forcibly set symbolic links - ignore errors
     --if-unset       Don't set specfied target if a valid existing target is already set (for each selected wine variant).
     --verbose        Print detailed information about operations being performed.
 ```
@@ -160,6 +163,7 @@ Remove all previously created symbolic links - for the specified wine variant(s)
 ```
 option
     --clean          Purge any orphaned symbolic links - associated with this module.
+    --force          Forcibly remove symbolic links - ignore errors
     --verbose        Print detailed information about operations being performed.
 ```
 ```
