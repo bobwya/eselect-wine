@@ -2,7 +2,7 @@
 .\" Copyright 2005-2017 Gentoo Foundation
 .\" Distributed under the terms of the GNU GPL version 2 or later
 .\"
-.TH wine.eselect 5 "July 2017" "Gentoo Linux" eselect
+.TH wine.eselect 5 "September 2017" "Gentoo Linux" eselect
 .SH NAME
 wine.eselect \- Gentoo management module for switching between installed multislot \fBapp-emulation\fR/\fBwine-staging\fR / \fBapp-emulation\fR/\fBwine-vanilla\fR package versions.
 .SH SYNOPSIS
@@ -12,7 +12,7 @@ wine.eselect \- Gentoo management module for switching between installed multisl
 .br
 .B eselect wine list\fR\t\t     [[\fIvariant\fR]...|\fB--all\fR]\fB
 .br
-.B eselect wine register\fR\t   [\fIvariant\fR]...\fB\t\t\t\fR[\fB--force\fR]\fB \fR[\fB--verbose\fR]\fB \fR[\fB--commit=\fRCOMMIT]\fB \fR[\fB--date=\fRDATE]\fB \fItarget\fB
+.B eselect wine register\fR\t   [\fIvariant\fR]...\fB\t\t\t\t\t\fR[\fB--verbose\fR]\fB \fR[\fB--commit=\fRCOMMIT]\fB \fR[\fB--date=\fRDATE]\fB \fItarget\fB
 .br
 .B eselect wine set\fR\t\t      [\fIvariant\fR]...\fB\t\t\t\fR[\fB--force\fR]\fB \fR[\fB--if-unset\fR]\fB \t \fItarget\fB
 .br
@@ -54,11 +54,13 @@ This active \fBwine\fR target will have symbolic links in global system paths wh
 
 This eselect module uses symbolic links in:
 
-   (1) ${EPREFIX}/usr/bin/*
-   (2) ${EPREFIX}/usr/share/applications/*
-   (3) ${EPREFIX}/usr/share/man/*
+   (1) ${EPREFIX}/usr/bin/*                        (binaries)
+   (2) ${EPREFIX}/usr/lib{32,64}/wine[-variant]/*  (libraries)
+   (3) ${EPREFIX}/usr/include/wine[-variant]/*     (include)
+   (4) ${EPREFIX}/usr/share/applications/*         (applications)
+   (5) ${EPREFIX}/usr/share/man/*                  (manuals)
 
-targeting executable, desktop and manpage files (respectively) - for the currently active package version.
+targeting (1) executable, (2) library, (3) include headers, (4) desktop, and (5) manpage files (respectively) - for the currently active (variant) package version.
 .br
 
 Details of the installed and currently active Wine package for each wine variant are stored in global configuration files under:
@@ -173,6 +175,8 @@ May also be used to reset the symbolic links for an existing wine version.
 .TP
 .SH \fIoption
 .br
+\fB--force\fR          Forcibly set symbolic links - ignore errors.
+.br
 \fB--if-unset\fR       Don't set specfied target if a valid existing target is already set (for each selected wine variant).
 .br
 \fB--verbose\fR        Print detailed information about operations being performed.
@@ -216,6 +220,8 @@ Remove all previously created symbolic links - for the specified wine variant(s)
 .SH \fIoption
 .br
 \fB--clean\fR          Purge any orphaned symbolic links - associated with this module.
+.br
+\fB--force\fR          Forcibly remove symbolic links - ignore errors.
 .br
 \fB--verbose\fR        Print detailed information about operations being performed.
 .br

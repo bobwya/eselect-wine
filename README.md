@@ -42,12 +42,12 @@ This active wine target will have symbolic links in global system paths which wo
 This eselect module uses symbolic links in:
 ```
   ${EPREFIX}/usr/bin/*
-  ${EPREFIX}/usr/lib{32,64}/*
-  ${EPREFIX}/usr/include/wine/*
+  ${EPREFIX}/usr/lib{32,64}/wine[-variant]/*
+  ${EPREFIX}/usr/include/wine[-variant]/*
   ${EPREFIX}/usr/share/applications/*
   ${EPREFIX}/usr/share/man/*
 ```
-targeting *executable*, *library*, *include* headers, *desktop*, and *manpage* files (respectively) - for the currently active package version.
+targeting (1) *executable*, (2) *library*, (3) *include headers*, (4) *desktop*, and (5) *manpage* files (respectively) - for the currently active (variant) package version.
 
 Details of the installed and currently active Wine package for each wine variant are stored in global configuration files under:
 ```
@@ -128,7 +128,7 @@ Set the symbolic links for a new wine target version - for the specified wine va
 May also be used to reset the symbolic links for an existing wine version.
 ```
 option
-    --force          Forcibly set symbolic links - ignore errors
+    --force          Forcibly set symbolic links - ignore errors.
     --if-unset       Don't set specfied target if a valid existing target is already set (for each selected wine variant).
     --verbose        Print detailed information about operations being performed.
 ```
@@ -163,7 +163,7 @@ Remove all previously created symbolic links - for the specified wine variant(s)
 ```
 option
     --clean          Purge any orphaned symbolic links - associated with this module.
-    --force          Forcibly remove symbolic links - ignore errors
+    --force          Forcibly remove symbolic links - ignore errors.
     --verbose        Print detailed information about operations being performed.
 ```
 ```
