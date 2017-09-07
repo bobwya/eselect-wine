@@ -9,7 +9,7 @@ inherit config multilib tests
 
 DESCRIPTION="Manage active wine version"
 MAINTAINER="bob.mt.wya@gmail.com"
-VERSION="1.5"
+VERSION="1.5.1"
 
 
 # Declare global constants
@@ -335,6 +335,7 @@ get_target_status()
 
 	if [[ "${target}" == "(unset)" ]]; then
 		[[ -z "${ignore_no_active}" ]] && write_error_msg "${FUNCNAME[csi]}(): no active target"
+		is_error=2
 	elif [[ ! -d "${wine_binaries_directory}" ]]; then
 		write_error_msg "${FUNCNAME[csi]}(): Local variant directory '${wine_binaries_directory}' does not exist"
 	elif [[ ! -x "${wine_binaries_directory}" || ! -r "${wine_binaries_directory}" ]]; then
@@ -346,7 +347,6 @@ get_target_status()
 	else
 		is_error=0
 	fi
-
 	unset_dir_env
 
 	return $((is_error))
@@ -965,6 +965,8 @@ describe_register_options()
 		printf "%s\n" "--${variant} : Register a new package with $(get_wine_variant_decription "${variant}")"
 	done
 	printf "%s\n" "--verbose : Print detailed information about operations performed"
+	printf "%s\n" "--commit : SHA-1 Git commit hash"
+	printf "%s\n" "--date : Date of Git commit"
 	printf "%s\n" "target : A fully qualified wine variant or (eselect wine list) entry number"
 }
 
@@ -1264,7 +1266,7 @@ describe_set_options()
 #   where a pre-existing target is set.
 do_set()
 {
-	local active i installed_list force_arg target variant unset_arg verbose_arg
+	local active active_status i installed_list force_arg target variant unset_arg verbose_arg
 	local -a variants_array=( ) options_array=( "--if-unset" "--verbose" "--force" )
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" "target" "${@}"
@@ -1278,16 +1280,15 @@ do_set()
 	for (( i=0 ; i<${#variants_array[@]} ; ++i )); do
 		variant="${variants_array[i]#--}"
 		active=$(get_active 1 "${variants_array[i]}")
-		if [[ ! -z "${unset_arg}" ]] \
- 				&& get_target_status 1 "${active}" "1" \
-				&& validate_symlinks 1 "${variants_array[i]}" "${verbose_arg}"
-		then
+		get_target_status 1 "${active}" "1"
+		active_status=$?
+		if [[ ! -z "${unset_arg}" ]] && ((!active_status)) && validate_symlinks 1 "${variants_array[i]}" "${verbose_arg}"; then
 			continue
 		fi
-
-		if ! do_unset "${variants_array[i]}" "${force_arg}" "${verbose_arg}"; then
+		if ((active_status != 2)) && ! do_unset "${variants_array[i]}" "${force_arg}" "${verbose_arg}"; then
 			die -q "${FUNCNAME[0]}(): Failed to unset active target"
-		elif ! set_symlinks 1 "${variants_array[i]}" "${target}" "${force_arg}" "${verbose_arg}"; then
+		fi
+		if ! set_symlinks 1 "${variants_array[i]}" "${target}" "${force_arg}" "${verbose_arg}"; then
 			die -q "${FUNCNAME[0]}(): Couldn't set $(get_wine_variant_decription "${variant}") symbolic links"
 		fi
 
