@@ -9,7 +9,7 @@ inherit config multilib tests
 
 DESCRIPTION="Manage active wine version"
 MAINTAINER="bob.mt.wya@gmail.com"
-VERSION="1.5.1"
+VERSION="1.5.2"
 
 
 # Declare global constants
@@ -33,7 +33,13 @@ declare	-a	G_VARIANT_OPTIONS=()
 for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
 	G_VARIANT_OPTIONS+=( "--${variant}" )
 done
-unset -v variant
+declare -a ARRAY_COLUMN_COLOURS=( "${COLOUR_RIGHT}" )
+for colour in 5 1; do
+	colour_column=""
+	[[ -z "${COLOUR_NORMAL}" ]] || colour_column="$(tput setaf "${colour}")${COLOUR_BOLD}"
+	ARRAY_COLUMN_COLOURS+=( "${colour_column}" )
+done
+unset -v colour colour_column variant
 
 
 ################################################################################
@@ -186,104 +192,6 @@ list_remove_item()
 		fi
 	done
 	echo "${list[@]}"
-}
-
-# get_list_item_max_length()
-#	1..N>	items-array (string array)
-# Description:
-#	Outputs maximum length of all list items to stdout.
-get_list_item_max_length()
-{
-	(($# < 1))		&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (1-)"
-
-	local -a list=( ${@} )
-	local item max_length=0
-	for i in "${!list[@]}"; do
-		item="${list[i]}"
-		max_length=$(( (${#item}>max_length) ? ${#item} : max_length ))
-	done
-	echo "${max_length}"
-}
-
-# columnate_colourised_text()
-#	1>		column alignment (string)
-#	stdin>	multi-column input - with embedded colour codes in any column
-# Description:
-# 	Columnate stdin. Use delimiter separator. Output buffer as spacing between columns
-columnate_colourised_text()
-{
-	(($# < 1))		&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (1-)"
-
-	local column_alignment="${1}" awk_command delimiter=" "
-
-	shift 1
-	awk_command="$(which mawk)"
-	[[ -z "${awk_command}" ]] && awk_command="$(which awk)"
-	# shellcheck disable=SC2016
-	${awk_command} -F"${delimiter}" -vcolumn_alignment="${column_alignment}" '
-		function setup_tty_colours(ttycolour_array, ttyboldcolour_array,
-                colours, colour_count, i, tty_command)
-		{
-				colours="red green yellow blue purple cyan white reset"
-				colour_count=split(colours, array_colours)
-				for (i=1;i<=colour_count;++i) {
-						tty_command=("tput " ((i==colour_count) ? "sgr0" : ("setaf " i " ; tput dim")))
-						tty_command | getline ttycolour_array[array_colours[i]]
-						close (tty_command)
-						tty_command=("tput " ((i==colour_count) ? "sgr0" : ("setaf " i " ; tput bold")))
-						tty_command | getline ttyboldcolour_array[array_colours[i]]
-						close (tty_command)
-				}
-		}
-
-		function get_colourised_string_length(in_string) {
-			gsub("\x1b(\[[[:digit:]]*[mGK]|\([B[[:digit:]]*)", "", in_string)
-			return (length(in_string))
-		}
-
-		BEGIN{
-			setup_tty_colours(ttycolour_array, ttyboldcolour_array)
-			column_count=split(column_alignment, array_column_alignment)
-		}
-
-		{
-			++max_lines
-			for (i=1 ; i<=NF ; ++i) {
-				gsub(/\|/, " ", $i)
-				array_lines[max_lines,i]=$i
-				array_length[max_lines,i]=get_colourised_string_length($i)
-				if (array_length[max_lines,i] > max_length[i]+0)
-					max_length[i]=array_length[max_lines,i]
-			}
-		}
-
-		END{
-			for (line=1 ; line<=max_lines ; ++line) {
-				for (field=1 ; (line,field) in array_lines ; ++field) {					
-					column_field=field					
-					if (column_field >= column_count) {
-						column_field=column_count
-						buffer=0
-						if (field == NF) {
-							printf("%s", ttycolour_array["cyan"])
-							buffer=array_column_alignment[column_field]+0
-						}
-						else if (field == column_count) {
-							printf("%s", ttyboldcolour_array["purple"])
-						}
-					}
-					else {
-						buffer=array_column_alignment[column_field]+0
-					}
-					if (array_column_alignment[column_field]+0 >= 0)
-						printf("%*s%s ", max_length[field]+buffer-array_length[line,field], "", array_lines[line,field])
-					else
-						printf(" %s%*s", array_lines[line,field],  max_length[field]-buffer-array_length[line,field], "")
-				}
-				printf("%s\n", ttyboldcolour_array["reset"])
-			}
-		}
-	'
 }
 ########## general utility functions (end)  ##########
 
@@ -1094,7 +1002,7 @@ describe_list_options()
 #	Return sorted list of files installed for a particular wine variant.
 do_list()
 {
-	local active il iv installed_list installed_list_total
+	local active column il iv installed_list installed_list_total stripped_colour_codes
 	local -a variants_array=( ) options_array=( "--all" )
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" . "${@}"
@@ -1109,22 +1017,29 @@ do_list()
 		for (( il = 0 ; il < installed_list_total ; il++ )); do
 			target="${installed_list[il]}"
 			if [[ "${target}" = "${active}" ]]; then
-				installed_list[il]=$(highlight_marker "${target}" | sed 's/ /|/g')
+				installed_list[il]=$(highlight_marker "${target}")
 			fi
-			[[ -f "${G_CONFIG_DIRECTORY}/${target}" ]] || continue
+			if [[ ! -f "${G_CONFIG_DIRECTORY}/${target}" ]] || is_output_mode brief; then
+				continue
+			fi
 
+			stripped_colour_codes="${installed_list[il]}"
+			stripped_colour_codes="${stripped_colour_codes//%%%[A-Z][A-Z]%%%/}"
+			installed_list[il]="${installed_list[il]}$( space $((30-${#stripped_colour_codes})) )"
+			column=0
 			# shellcheck disable=SC2068
 			for setting in ${G_WINE_SETTINGS_ARRAY[@]}; do
+				column=$((++column % ${#ARRAY_COLUMN_COLOURS[@]}))
 				setting="${setting#--}"
 				value="$(load_config "${G_CONFIG_DIRECTORY}/${target}" "${setting}")"
 				[[ -z "${value}" ]] && continue
 
-				installed_list[il]="${installed_list[il]} ||${value}"
+				installed_list[il]="${installed_list[il]} ${ARRAY_COLUMN_COLOURS[column]}${value}${COLOUR_NORMAL}$( space $((35-${#value})) )"
 			done
 		done
 		(( installed_list_total == 0 )) && unset -v installed_list
 
-		write_numbered_list -m "(none found)" "${installed_list[@]}" | columnate_colourised_text "2 -1 2"
+		write_numbered_list -m "(none found)" "${installed_list[@]}"
 	done
 }
 
@@ -1150,7 +1065,7 @@ describe_show_options()
 #	Show the active wine version for the specified wine variant(s).
 do_show()
 {
-	local active i line setting value variant
+	local active column i line setting value variant
 	local -a variants_array=( ) options_array=( "--all" )
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" . "${@}"
@@ -1162,18 +1077,21 @@ do_show()
 		variant="wine-${variant#wine}"
 		write_list_start "Active ${variant%-} version:"
 		active=$(get_active 1 "${variants_array[i]}")
-		line="${active}    "
-		if [[ -f "${G_CONFIG_DIRECTORY}/${active}" ]]; then
+		line="${active}"
+		if [[ -f "${G_CONFIG_DIRECTORY}/${active}" ]] && ! is_output_mode brief; then
+			line="${line}   "
+			column=0
 			# shellcheck disable=SC2068
 			for setting in ${G_WINE_SETTINGS_ARRAY[@]}; do
+				column=$((++column % ${#ARRAY_COLUMN_COLOURS[@]}))
 				setting="${setting#--}"
 				value="$(load_config "${G_CONFIG_DIRECTORY}/${active}" "${setting}")"
 				[[ -z "${value}" ]] && continue
 
-				line="${line} ||${value}"
+				line="${line} ${ARRAY_COLUMN_COLOURS[column]}${value}${COLOUR_NORMAL}$( space $((35-${#value})) )"
 			done
 		fi
-		write_kv_list_entry "${line}" "" | columnate_colourised_text "2 2"
+		write_kv_list_entry "${line}" ""
 		if [[ "${active}" != "(unset)" ]]; then
 			validate_symlinks 1 "${variants_array[i]}"
 		fi
