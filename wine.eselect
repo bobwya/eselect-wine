@@ -751,7 +751,7 @@ set_symlinks()
 
 	(($# < 1))		&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (1-)"
 
-	local csi="${1}" binary_file first=true force_arg lib link links manual_path target variant verbose_arg
+	local csi="${1}" binary_file first=true force_arg lib library_path link links link_target manual_path target variant verbose_arg
 	local -a variants_array=( ) options_array=( "--force" "--verbose" )
 
 	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" "target" "${@:2}"
@@ -786,11 +786,19 @@ set_symlinks()
 				for lib in $(list_libdirs); do
 					# Check global library path is not just a symbolic link
 					# Don't assume wine is built with full multilib support
-					[[ -L "${global_prefix_directory}/${lib}" || ! -d "${global_prefix_directory}/${lib}/${target}/wine" ]] && continue
+					[[ -L "${global_prefix_directory}/${lib}" ]] && continue
 
-					link="${global_prefix_directory}/${lib}/wine"
-					set_symlink $((csi+1)) "${global_prefix_directory}/${lib}/${target}/wine" "link" "${variant}" "${force_arg}" "${verbose_arg}"
-					links="${links} ${link}"
+					while IFS= read -r -d '' library_path; do
+						link="${global_prefix_directory}/${lib}/${library_path}"
+						link_target="${global_prefix_directory}/${lib}/${target}/${library_path}"
+						if [[ -L "${link_target}" ]]; then
+							link_target="$(canonicalise "${global_prefix_directory}/${lib}/${target}/${library_path}")"
+						fi
+						set_symlink $((csi+1)) "${link_target}" "link" "${variant}" "${force_arg}" "${verbose_arg}"
+						links="${links} ${link}"
+					done < <( find "${global_prefix_directory}/${lib}/${target}" -type d -mindepth 1 -maxdepth 1 -name "wine" -printf '%f\0' 2>/dev/null \
+						&& find "${global_prefix_directory}/${lib}/${target}" \( -type f -o -type l \) -mindepth 1 -maxdepth 1 -name "libwine.so*" -printf '%f\0' 2>/dev/null
+						)
 				done
 				;;
 
