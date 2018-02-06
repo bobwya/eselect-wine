@@ -1,5 +1,5 @@
 # -*-eselect-*-  vim: ft=eselect
-# Copyright 2005-2017 Gentoo Foundation
+# Copyright 2005-2018 Gentoo Foundation
 # Distributed under the terms of the GNU GPL version 2 or later
 
 # shellcheck disable=SC2034
@@ -9,17 +9,18 @@ inherit config multilib tests
 
 DESCRIPTION="Manage active wine version"
 MAINTAINER="bob.mt.wya@gmail.com"
-VERSION="1.5.2"
+VERSION="1.5.3"
 
 
 # Declare global constants
 declare -r	G_VARIABLE_REGEX="^[_[:alpha:]][_[:alnum:]]*$"
 declare -r	G_CONFIG_DIRECTORY="${EROOT%/}/etc/eselect/wine"
+declare -r	G_LOCKFILE_DEFAULT="${G_CONFIG_DIRECTORY}/.lock"
 declare -ar	G_WINE_VARIANTS_ARRAY=( "staging" "vanilla" "wine" )
 declare -ar G_CONFIG_VARIABLES=( "applications" "binaries" "include" "libraries" "manuals" )
-declare -ar G_WINE_BIN_ARRAY=(	"msidb" "msiexec" "notepad" "regedit" "regsvr32" "widl" "wine" "wine64" "wine64-preloader" "wineboot" "winebuild" \
-								"winecfg" "wineconsole" "winecpp" "winedbg" "winefile" "wineg++" "winegcc" "winemine" "winepath" "wine-preloader" \
-								"wineserver" "wmc" "wrc"
+declare -ar G_WINE_BIN_ARRAY=(	"function_grep.pl" "msidb" "msiexec" "notepad" "regedit" "regsvr32" "widl" "wine" "wine64" "wine64-preloader" \
+								"wineboot" "winebuild" "winecfg" "wineconsole" "winecpp" "winedbg" "winefile" "wineg++" "winegcc" "winemine" \
+								"winepath" "wine-preloader" "wineserver" "wmc" "wrc"
 							)
 declare -ar	G_WINE_MAN_ARRAY=(	"man1/msiexec.1" "man1/notepad.1" "man1/regedit.1" "man1/regsvr32.1" "man1/widl.1" "man1/wine.1" "man1/wineboot.1" \
 								"man1/winebuild.1" "man1/winecfg.1" "man1/wineconsole.1" "man1/winecpp.1" "man1/winedbg.1" "man1/winefile.1" \
@@ -29,6 +30,7 @@ declare -ar G_WINE_SETTINGS_ARRAY=( "--date" "--commit" )
 declare 	G_TOTAL_WINE_VARIANTS=${#G_WINE_VARIANTS_ARRAY[@]}
 
 # Declare global variables
+declare		G_LOCKFILE
 declare	-a	G_VARIANT_OPTIONS=()
 for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
 	G_VARIANT_OPTIONS+=( "--${variant}" )
@@ -41,13 +43,42 @@ for colour in 5 1; do
 done
 unset -v colour colour_column variant
 
-
 ################################################################################
 #                               Eselect Wine                                   #
 ################################################################################
 
-
 ########## general utility functions (start) ##########
+trap_exit()
+{
+        trap '' ABRT INT QUIT TERM EXIT
+        if [[ ! -z "${G_LOCKFILE}" && -f "${G_LOCKFILE}" ]]; then
+			rm -f "${G_LOCKFILE}" >/dev/null 2>&1
+		fi
+		exit
+}
+
+# Cleanup after ourselves with function trap_exit()
+trap "trap_exit" ABRT INT QUIT TERM EXIT
+
+# wait_for_global_lock()
+#	[1>		0=Read Only*, 1=Read/Write]
+#	[2>		--verbose]
+wait_for_global_lock()
+{
+	local read_write="${1:-0}" verbose_arg="${2:-}"
+
+	while [[ -f "${G_LOCKFILE_DEFAULT}" && -z "${G_LOCKFILE}" ]]; do
+		if [[ ! -z "${verbose_arg}" ]]; then
+			printf "%s\\n" "Waiting for lockfile \"${G_LOCKFILE_DEFAULT}\" to clear - have you another active eselect wine process?"
+		fi
+		sleep 5
+	done
+	if (( read_write )); then
+		G_LOCKFILE="${G_LOCKFILE_DEFAULT}"
+		touch "${G_LOCKFILE}"
+	fi
+}
+
 # set_dir_env()
 #	1>	[target=name (string)]
 # Description:
@@ -102,7 +133,7 @@ expand_path()
 	# Expand path ...
 	path_directory="$(dirname "${path}")"
 	path_file="$(basename "${path}")"
-	path_file_base="${path_file%.*}"
+	path_file_base="${path_file%%.*}"
 	path_file_extension="${path_file#${path_file_base}}"
 }
 
@@ -116,9 +147,9 @@ get_wine_variant_decription()
 
 	variant="${variant#--}"
 	if [[ "${variant}" == "wine" ]]; then
-		printf "%s\n" "'wine'"
+		printf "%s\\n" "'wine'"
 	else
-		printf "%s\n" "wine variant 'wine-${variant}'"
+		printf "%s\\n" "wine variant 'wine-${variant}'"
 	fi
 }
 
@@ -133,7 +164,7 @@ desktop_database_update()
 
 	if [[ -x "${update_database_bin}" ]]; then
 		[[ ! -z "${verbose_arg}" ]] \
-			&& printf "%s\n" "${FUNCNAME[0]}(): Updating desktop mime database ..."
+			&& printf "%s\\n" "${FUNCNAME[0]}(): Updating desktop mime database ..."
 
 		"${update_database_bin}" -q "${EPREFIX}/usr/share/applications" \
 			|| die "${FUNCNAME[0]}(): Failed to update desktop mime database"
@@ -149,7 +180,7 @@ sort_versions()
 	local vsort="sort --version-sort"
 
 	# Test if our sort supports the --version-sort option (posix does)
-	${vsort} </dev/null &>/dev/null || vsort="sort"
+	${vsort} </dev/null >/dev/null 2>&1 || vsort="sort"
 	# (1) Prepend version string (column 1)
 	# (2) Apply version sort
 	# (3) Remove prepended version string (column 1)
@@ -166,6 +197,7 @@ sort_list()
 {
 	(($# == 0))		&& return
 
+	# shellcheck disable=SC2206
 	local -a list=( ${@} )
 	local i
 
@@ -184,6 +216,7 @@ list_remove_item()
 	(($# < 2))		&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (2-)"
 
 	local remove_item="${1}" i
+	# shellcheck disable=SC2206
 	local -a list=( ${@:2} )
 
 	for i in "${!list[@]}"; do
@@ -209,9 +242,11 @@ is_target_index_valid()
 	(($# != 3))	&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (3)"
 
 	declare -n	target_reference="${2}"
+	# shellcheck disable=SC2207
 	local	csi="${1}" variant="${3#--}"
 	local	target_index="${target_reference}"
-	local -a targets=($(get_installed_targets $((csi+1)) "--${variant}"))
+	# shellcheck disable=SC2207
+	local -a targets=( $(get_installed_targets $((csi+1)) "--${variant}") )
 	local	total_targets=${#targets[@]}
 
 	if (( (target_index >= 1) && (target_index <= total_targets) )); then
@@ -278,7 +313,7 @@ validate_exported_function_parameters()
 	declare -n options_array_reference="${2}" variants_array_reference="${4}"
 	local csi="${1}" settings_array_reference="${3}" \
 			has_settings=0 has_target=0 has_all=0 multiple_variants=1 target_count=0 \
-			i option variant_selected_total 
+			i option target_nonslotted variant_selected_total 
 
 	local -a settings_array_available=( )
 	if [[ "${3}" =~ ${G_VARIABLE_REGEX} ]]; then
@@ -326,9 +361,11 @@ validate_exported_function_parameters()
 			fi
 		elif has "${1%%=*}" "${settings_array_available[@]}"; then
 			option="${1%%=*}"
+			# shellcheck disable=SC2207
 			if has "${option}" "${settings_array_selected[@]}"; then
 				die -q "${FUNCNAME[csi]}(): Option '${option}' specified more than once"
 			fi
+			# shellcheck disable=SC2207
 			settings_array_available=( $(list_remove_item "${option}" "${settings_array_available[@]}") )
 			settings_array_selected+=( "${option}" )
 			settings_array_return+=( "${1#--}" )
@@ -336,6 +373,7 @@ validate_exported_function_parameters()
 			if has "${1}" "${options_array_selected[@]}"; then
 				die -q "${FUNCNAME[csi]}(): Option '${1}' specified more than once"
 			fi
+			# shellcheck disable=SC2207
 			options_array_available=( $(list_remove_item "${1}" "${options_array_available[@]}") )
 			options_array_selected+=( "${1}" )
 		else
@@ -358,15 +396,18 @@ validate_exported_function_parameters()
 		[[ -z "${target_reference}" ]] && die -q "${FUNCNAME[csi]}(): Target (number or name) not specified"
 		local verbose_arg
 		if has "--verbose" "${options_array_selected[@]}"; then
-			printf "%s\n" "${FUNCNAME[csi]}(): Working with target '${target_reference}' ..."
+			printf "%s\\n" "${FUNCNAME[csi]}(): Working with target '${target_reference}' ..."
 			verbose_arg="--verbose"
 		fi
 
 		if is_number "${target_reference}"; then
 			is_target_index_valid $((csi+1)) "target" "${variants_array_selected[0]#--}"
+			target_nonslotted="${target_reference}"
+		else
+			target_nonslotted="$( echo "${target_reference}" | sed -E 's/(.*):/\1-/' )"
 		fi
-		if ! get_target_status $((csi+1)) "${target_reference}" && ! has "--force" "${options_array_selected[@]}"; then
-			deregister "${verbose_arg}" "${variants_array_selected[0]}" "${target_reference}"
+		if ! get_target_status $((csi+1)) "${target_nonslotted}" && ! has "--force" "${options_array_selected[@]}"; then
+			do_deregister "${verbose_arg}" "${variants_array_selected[0]}" "${target_nonslotted}"
 			die -q "${FUNCNAME[csi]}(): Target '${target_reference}' does not exist - automatically deregistered"
 		fi
 	fi
@@ -399,13 +440,15 @@ validate_symlinks()
 
 		local	csi="${1}" variant="${2#--}" target="${3}" variable="${4}" verbose_arg="${5:-}"
 		local	-a symlinks
-		local	relative_variant_directory relative_variant_file_base relative_variant_file_extension relative_variant_path relative_variant_path \
-				file global_path lib relative_global_directory symlink variant_path variant_suffix
+		local	variant_path variant_directory variant_file_base variant_file_extension \
+				relative_variant_directory relative_variant_file_base relative_variant_file_extension relative_variant_path \
+				global_path relative_global_directory relative_global_file_base relative_global_file_extension relative_global_path \
+				file lib symlink variant_suffix
 
 		[[ "${variant}" != "wine" ]]	&& variant_suffix="-${variant}"
 
 		if [[ ! -z "${verbose_arg}" ]]; then
-			printf "%s\n" "${FUNCNAME[csi]}(): Checking variable: '${variable}'; for target: '${target}' ($(get_wine_variant_decription "${variant}")) ..."
+			printf "%s\\n" "${FUNCNAME[csi]}(): Checking variable: '${variable}'; for target: '${target}' ($(get_wine_variant_decription "${variant}")) ..."
 		fi
 		symlinks=$(load_config "${G_CONFIG_DIRECTORY}/links/${variant}" "${variable}")
 		if [[ -z "${symlinks}" ]]; then
@@ -419,7 +462,7 @@ validate_symlinks()
 				return 1
 			fi
 
-			target_file=$(canonicalise "${symlink}")
+			target_file=$(readlink "${symlink}")
 			if [[ ! -e "${target_file}" ]]; then
 				write_error_msg "${FUNCNAME[csi]}(): 'Symbolic link  ('${symlink}') points to non-existent target: '${target_file}'"
 				return 1
@@ -427,8 +470,8 @@ validate_symlinks()
 
 			case "${variable}" in
 				binaries)
-					variant_path="${symlink%${variant_suffix}}"
-					variant_path="${variant_path}${target#wine}"
+					expand_path "${symlink}" "variant_directory" "variant_file_base" "variant_file_extension"
+					variant_path="${variant_directory%/}/${variant_file_base%${variant_suffix}}${target#wine}${variant_file_extension}"
 					if [ "${target_file}" != "${variant_path}" ]; then
 						write_error_msg "${FUNCNAME[csi]}(): Symbolic link ('${symlink}' -> '${target_file}'): broken/invalid link"
 						return 1
@@ -464,12 +507,18 @@ validate_symlinks()
 
 						variant_path="${global_prefix_directory}/${lib}/${target}"
 						relative_variant_path="${target_file#${variant_path}}"
+# 						relative_variant_path="$(canonicalise "${relative_variant_path}")"
 
 						global_path="${global_prefix_directory}/${lib}"
 						relative_global_path="${symlink#${global_path}}"
-						[ "${variant}" != "wine" ] && relative_global_path="${relative_global_path%-${variant}}"
+						if [ "${variant_suffix}" != "wine" ]; then
+							expand_path "${relative_global_path}" "relative_global_directory" "relative_global_file_base" "relative_global_file_extension"
+							relative_global_path="${relative_global_directory%/}/${relative_global_file_base%${variant_suffix}}${relative_global_file_extension}"
+						fi
+# 						[ "${variant}" != "wine" ] && relative_global_path="${relative_global_path%-${variant}}"
+# 						relative_global_path="$(canonicalise "${relative_global_path}")"
 
-						[ "${relative_variant_path}" = "${relative_global_path}" ] && break
+						[[ "${relative_variant_path}" = "${relative_global_path}" ]] && break
 					done
 					if [ "${relative_variant_path}" != "${relative_global_path}" ]; then
 						write_error_msg "${FUNCNAME[csi]}(): Symbolic link ('${symlink}' -> '${target_file}'): link target ('${target_file}') is not associated with any wine package"
@@ -483,7 +532,7 @@ validate_symlinks()
 			esac
 
 			if [[ ! -z "${verbose_arg}" ]]; then
-				printf "%s\n" "${FUNCNAME[csi]}(): Validated symbolic link ('${symlink}' -> '${target_file}') for path '${variant_path}' ..."
+				printf "%s\\n" "${FUNCNAME[csi]}(): Validated symbolic link ('${symlink}' -> '${target_file}') for path '${variant_path}' ..."
 			fi
 		done
 	}
@@ -495,7 +544,7 @@ validate_symlinks()
 
 	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" . "${@:2}"
 	# shellcheck disable=SC2068
-	has "--verbose" ${options_array[@]} && verbose_arg="--verbose"
+	has "--verbose" "${options_array[@]}" && verbose_arg="--verbose"
 	variant="${variants_array[0]#--}"
 
 	target=$(get_active $((csi+1)) "${variants_array[0]}")
@@ -504,7 +553,7 @@ validate_symlinks()
 		return 1
 	fi
 	if [[ ! -z "${verbose_arg}" ]]; then
-		printf "%s\n" "${FUNCNAME[csi]}(): Working with target '${target}' ..."
+		printf "%s\\n" "${FUNCNAME[csi]}(): Working with target '${target}' ..."
 	fi
 
 	set_dir_env "${target}"
@@ -521,7 +570,7 @@ validate_symlinks()
 		if has "${variable}" ${symlink_variables[@]}; then
 			symlink_variables=$(list_remove_item "${variable}" "${symlink_variables}")
 		else
-			printf "%s\n%s\n" \
+			printf "%s\\n%s\\n" \
 				"${FUNCNAME[csi]}(): Missing '${variable}' in $(get_wine_variant_decription "${variant}") configuration..." \
 				"Please re-run: eselect wine set"
 		fi
@@ -574,7 +623,7 @@ remove_orphaned_bin_symlinks()
 
 		# symlink is an orphaned symbolic link - so remove it...!!
 		if rm -f "${symlink}"; then
-			printf "%s\n" "${FUNCNAME[csi]}(): Found and removed orphaned symbolic link *(${symlink})"
+			printf "%s\\n" "${FUNCNAME[csi]}(): Found and removed orphaned symbolic link *(${symlink})"
 		else
 			die -q "${FUNCNAME[csi]}(): Unable to remove orphaned symbolic link *(${symlink})"
 		fi
@@ -586,7 +635,7 @@ remove_orphaned_bin_symlinks()
 
 	set_dir_env
 
-	if ! which qfile &>/dev/null; then
+	if ! which qfile >/dev/null 2>&1; then
 		die -q "${FUNCNAME[0]}(): Please install the: 'app-portage/portage-utils' package"
 	fi
 	remove_symlink $((csi+1)) "${global_applications_directory%/}/wine.desktop" "${variant}"
@@ -625,7 +674,7 @@ remove_symlinks()
 		local csi="${1}" symlink="${2}" variant="${3#--}" force_arg="${4:-}" verbose_arg="${5:-}"
 
 		if [[ ! -e "${symlink}" ]]; then
-			printf "%s\n" "Symbolic link ('${symlink}') not found for $(get_wine_variant_decription "${variant}")"
+			printf "%s\\n" "Symbolic link ('${symlink}') not found for $(get_wine_variant_decription "${variant}")"
 		elif [[ ! -L "${symlink}" ]]; then
 			local error_type
 			[[ -f "${symlink}" ]] && error_type="regular file"
@@ -639,10 +688,10 @@ remove_symlinks()
 			if [[ -z "${force_arg}" ]]; then
 				die "${FUNCNAME[csi]}(): Failed to remove symbolic link ('${symlink}')"
 			else
-				write_warning_msg"${FUNCNAME[csi]}(): Failed to remove symbolic link ('${symlink}')"
+				write_warning_msg "${FUNCNAME[csi]}(): Failed to remove symbolic link ('${symlink}')"
 			fi
 		elif [[ ! -z "${verbose_arg}" ]]; then
-			printf "${FUNCNAME[csi]}(): %s\n" "Removed symbolic link ('${symlink}') for $(get_wine_variant_decription "${variant}")..."
+			printf "${FUNCNAME[csi]}(): %s\\n" "Removed symbolic link ('${symlink}') for $(get_wine_variant_decription "${variant}")..."
 		fi
 	}
 
@@ -654,11 +703,11 @@ remove_symlinks()
 	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" . "${@:2}"
 	variant="${variants_array[0]#--}"
 	# shellcheck disable=SC2068
-	has "--clean" ${options_array[@]}	&& remove_orphaned_bin_symlinks $((csi+1)) "${variant}"
+	has "--clean" "${options_array[@]}"		&& remove_orphaned_bin_symlinks $((csi+1)) "${variant}"
 	# shellcheck disable=SC2068
-	has "--force" ${options_array[@]}	&& force_arg="--force"
+	has "--force" "${options_array[@]}"		&& force_arg="--force"
 	# shellcheck disable=SC2068
-	has "--verbose" ${options_array[@]}	&& verbose_arg="--verbose"
+	has "--verbose" "${options_array[@]}"	&& verbose_arg="--verbose"
 
 	symlink_variables=$(load_config "${G_CONFIG_DIRECTORY}/links/${variant}" "symlink_directories")
 	if [[ -z "${symlink_variables}" ]]; then
@@ -720,12 +769,11 @@ set_symlinks()
 		declare -n link_reference="${3}"
 		local link_directory link_file link_file_base link_file_extension variant_suffix
 
-		[[ "${variant}" != "wine" ]]	&& variant_suffix="-${variant}"
-
-		# Expand symbolic link ...
-		expand_path "${link_reference}" "link_directory" "link_file_base" "link_file_extension"
-		# ... and insert variant suffix before the file extension
-		link_reference="${link_directory}/${link_file_base}${variant_suffix}${link_file_extension}"
+		if [[ "${variant}" != "wine" ]]; then
+			variant_suffix="-${variant}"
+			expand_path "${link_reference}" "link_directory" "link_file_base" "link_file_extension"
+			link_reference="${link_directory}/${link_file_base}${variant_suffix}${link_file_extension}"
+		fi
 
 		if [[ ! -e "${link_target}" ]]; then
 			write_warning_msg "${FUNCNAME[csi]}(): Symbolic link target ('${link_target}') does not exist - for $(get_wine_variant_decription "${variant}") ... Cleaning up."
@@ -741,26 +789,26 @@ set_symlinks()
 			mkdir -p "${link_directory}" || die -q "${FUNCNAME[csi]}(): Failed to make directory: '${link_directory}'"
 		fi
 		if ! ln -sf "${link_target}" "${link_reference}"; then
-			write_warning_msg"${FUNCNAME[csi]}(): Failed to set symbolic link from ('${link_reference}' -> '${link_target}') for $(get_wine_variant_decription "${variant}") ... Cleaning up."
+			write_warning_msg "${FUNCNAME[csi]}(): Failed to set symbolic link from ('${link_reference}' -> '${link_target}') for $(get_wine_variant_decription "${variant}") ... Cleaning up."
 			remove_symlinks $((csi)) "--${variant}" "${force_arg}" "${verbose_arg}"
 			return 1
 		elif [[ ! -z "${verbose_arg}" ]]; then
-			printf "%s\n" "${FUNCNAME[csi]}(): Created symbolic link from ('${link_reference}' -> '${link_target}') for $(get_wine_variant_decription "${variant}") ..."
+			printf "%s\\n" "${FUNCNAME[csi]}(): Created symbolic link from ('${link_reference}' -> '${link_target}') for $(get_wine_variant_decription "${variant}") ..."
 		fi
 	}
 
 	(($# < 1))		&& die -q "${FUNCNAME[0]}(): Invalid number of parameters: ${#} (1-)"
 
-	local csi="${1}" binary_file first=true force_arg lib library_path link links link_target manual_path target variant verbose_arg
+	local csi="${1}" binary_file binary_file_base binary_file_extension first=true force_arg \
+		lib library_path link links link_target manual_path null target variant verbose_arg
 	local -a variants_array=( ) options_array=( "--force" "--verbose" )
 
 	validate_exported_function_parameters $((csi+1)) "options_array" . "variants_array" "target" "${@:2}"
 	# shellcheck disable=SC2068
-	has "--force" ${options_array[@]}		&& force_arg="--force"
+	has "--force" "${options_array[@]}"		&& force_arg="--force"
 	# shellcheck disable=SC2068
-	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
+	has "--verbose" "${options_array[@]}"	&& verbose_arg="--verbose"
 	variant="${variants_array[0]#--}"
-
 	set_dir_env "${target}"
 
 	for variable in "${G_CONFIG_VARIABLES[@]}"; do
@@ -777,7 +825,8 @@ set_symlinks()
 			binaries)
 				while IFS= read -r -d '' binary_file; do
 					link="${global_binaries_directory}/${binary_file}"
-					set_symlink $((csi+1)) "${global_binaries_directory}/${binary_file}${target##wine}" "link" "${variant}" "${force_arg}" "${verbose_arg}"
+					expand_path "${binary_file}" "null" "binary_file_base" "binary_file_extension"
+					set_symlink $((csi+1)) "${global_binaries_directory}/${binary_file_base}${target##wine}${binary_file_extension}" "link" "${variant}" "${force_arg}" "${verbose_arg}"
 					links="${links} ${link}"
 				done < <(find "${wine_binaries_directory}" -mindepth 1 -maxdepth 1 \( -type f -o -type l \) -printf '%P\0' 2>/dev/null)
 				;;
@@ -791,9 +840,6 @@ set_symlinks()
 					while IFS= read -r -d '' library_path; do
 						link="${global_prefix_directory}/${lib}/${library_path}"
 						link_target="${global_prefix_directory}/${lib}/${target}/${library_path}"
-						if [[ -L "${link_target}" ]]; then
-							link_target="$(canonicalise "${global_prefix_directory}/${lib}/${target}/${library_path}")"
-						fi
 						set_symlink $((csi+1)) "${link_target}" "link" "${variant}" "${force_arg}" "${verbose_arg}"
 						links="${links} ${link}"
 					done < <( find "${global_prefix_directory}/${lib}/${target}" -type d -mindepth 1 -maxdepth 1 -name "wine" -printf '%f\0' 2>/dev/null \
@@ -866,24 +912,24 @@ get_installed_targets()
 ### Registration action ###
 describe_register()
 {
-	printf "%s\n" "Register a new package with the eselect module (** internal use only **)"
+	printf "%s\\n" "Register a new package with the eselect module (** internal use only **)"
 }
 
 describe_register_parameters()
 {
-	printf "%s\n" "<target>"
+	printf "%s\\n" "<target>"
 }
 
 describe_register_options()
 {
 	local variant
 	for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
-		printf "%s\n" "--${variant} : Register a new package with $(get_wine_variant_decription "${variant}")"
+		printf "%s\\n" "--${variant} : Register a new package with $(get_wine_variant_decription "${variant}")"
 	done
-	printf "%s\n" "--verbose : Print detailed information about operations performed"
-	printf "%s\n" "--commit : SHA-1 Git commit hash"
-	printf "%s\n" "--date : Date of Git commit"
-	printf "%s\n" "target : A fully qualified wine variant or (eselect wine list) entry number"
+	printf "%s\\n" "--verbose : Print detailed information about operations performed"
+	printf "%s\\n" "--commit : SHA-1 Git commit hash"
+	printf "%s\\n" "--date : Date of Git commit"
+	printf "%s\\n" "target : A fully qualified wine variant or (eselect wine list) entry number"
 }
 
 # do_register()
@@ -897,12 +943,15 @@ describe_register_options()
 #	(** internal use only **)
 do_register()
 {
-	local installed_list is iv setting target targets total_targets variant verbose_arg
+	local installed_list is iv setting target target_nonslotted targets total_targets variant verbose_arg
 	local -a variants_array=( ) settings_array=( "${G_WINE_SETTINGS_ARRAY[@]}" ) options_array=( "--verbose" )
 
 	validate_exported_function_parameters 1 "options_array" "settings_array" "variants_array" "target" "${@}"
 	# shellcheck disable=SC2068
-	has "--verbose" ${options_array[@]}	&& verbose_arg="--verbose"
+	has "--verbose" "${options_array[@]}"	&& verbose_arg="--verbose"
+	target_nonslotted="$( echo "${target}" | sed -E 's/(.*):/\1-/' )"
+
+	wait_for_global_lock 1 "${verbose_arg}"
 	for (( iv=0 ; iv<${#variants_array[@]} ; ++iv )); do
 		variant="${variants_array[iv]#--}"
 
@@ -910,41 +959,42 @@ do_register()
 		installed_list=$(get_installed_targets 1 "${variants_array[iv]}")
 
 		# shellcheck disable=SC2086
-		if ! has "${target}" ${installed_list}; then
-			installed_list=($(sort_list "${installed_list} ${target}"))
+		if ! has "${target_nonslotted}" ${installed_list}; then
+			# shellcheck disable=SC2207
+			installed_list=( $(sort_list "${installed_list} ${target_nonslotted}") )
 			store_config "${G_CONFIG_DIRECTORY}/installed" "${variant}" "${installed_list[@]}"
 			if [[ ! -z "${verbose_arg}" ]]; then
-				printf "%s\n" "${FUNCNAME[0]}(): Successfully added target '${target}' to $(get_wine_variant_decription "${variant}") installed list"
+				printf "%s\\n" "${FUNCNAME[0]}(): Successfully added target '${target}' to $(get_wine_variant_decription "${variant}") installed list"
 			fi
 		elif [[ ! -z "${verbose_arg}" ]]; then
-			printf "%s\n" "${FUNCNAME[0]}(): Target '${target}' already in $(get_wine_variant_decription "${variant}") installed list"
+			printf "%s\\n" "${FUNCNAME[0]}(): Target '${target}' already in $(get_wine_variant_decription "${variant}") installed list"
 		fi
 		for (( is=0 ; is<${#settings_array[@]} ; ++is )); do
 			setting="${settings_array[is]}"
-			store_config "${G_CONFIG_DIRECTORY}/${target}" "${setting%%=*}" "${setting#*=}"
+			store_config "${G_CONFIG_DIRECTORY}/${target_nonslotted}" "${setting%%=*}" "${setting#*=}"
 		done
 	done
 }
 
 describe_deregister()
 {
-	printf "%s\n" "Deregister a package with the eselect module (** internal use only **)"
+	printf "%s\\n" "Deregister a package with the eselect module (** internal use only **)"
 }
 
 describe_deregister_parameters()
 {
-	printf "%s\n" "<target>"
+	printf "%s\\n" "<target>"
 }
 
 describe_deregister_options()
 {
 	local variant
 	for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
-		printf "%s\n" "--${variant} : Deregister a package with $(get_wine_variant_decription "${variant}")"
+		printf "%s\\n" "--${variant} : Deregister a package with $(get_wine_variant_decription "${variant}")"
 	done
-	printf "%s\n" "--force : Forcibly remove a package"
-	printf "%s\n" "--verbose : Print detailed information about operations performed"
-	printf "%s\n" "target : A fully qualified wine variant or (eselect wine list) entry number"
+	printf "%s\\n" "--force : Forcibly remove a package"
+	printf "%s\\n" "--verbose : Print detailed information about operations performed"
+	printf "%s\\n" "target : A fully qualified wine variant or (eselect wine list) entry number"
 }
 
 # do_deregister()
@@ -957,33 +1007,36 @@ describe_deregister_options()
 #	(** internal use only **)
 do_deregister()
 {
-	local force_arg installed_list target targets total_targets variant verbose_arg
+	local force_arg installed_list target target_nonslotted targets total_targets variant verbose_arg
 	local -a variants_array=( ) options_array=( "--force" "--verbose" )
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" "target" "${@}"
 	# shellcheck disable=SC2068
-	has "--force"	${options_array[@]}		&& force_arg="--force"
+	has "--force"	"${options_array[@]}"	&& force_arg="--force"
 	# shellcheck disable=SC2068
-	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
+	has "--verbose" "${options_array[@]}"	&& verbose_arg="--verbose"
+	target_nonslotted="$( echo "${target}" | sed -E 's/(.*):/\1-/' )"
+
+	wait_for_global_lock 1 "${verbose_arg}"
 	for (( i=0 ; i<${#variants_array[@]} ; ++i )); do
 		variant="${variants_array[i]#--}"
 
 		installed_list=$(get_installed_targets 1 "${variants_array[i]}")
 
 		# shellcheck disable=SC2086
-		if ! has "${target}" ${installed_list}; then
+		if ! has "${target_nonslotted}" ${installed_list}; then
 			die -q "${FUNCNAME[0]}(): ${target} is not registered for $(get_wine_variant_decription "${variant}")"
 		fi
 
-		if [[ "${target}" == "$(get_active 1 "${variants_array[i]}")" ]]; then
+		if [[ "${target_nonslotted}" == "$(get_active 1 "${variants_array[i]}")" ]]; then
 			do_unset "${variants_array[i]}" "${force_arg}" "${verbose_arg}"
 		fi
 
-		installed_list=$(list_remove_item "${target}" "${installed_list}")
+		installed_list=$(list_remove_item "${target_nonslotted}" "${installed_list}")
 		store_config "${G_CONFIG_DIRECTORY}/installed" "${variant}" "${installed_list}"
 		
-		if [[ -f "${G_CONFIG_DIRECTORY}/${target}" ]]; then
-			rm -f "${G_CONFIG_DIRECTORY}/${target}"
+		if [[ -f "${G_CONFIG_DIRECTORY}/${target_nonslotted}" ]]; then
+			rm -f "${G_CONFIG_DIRECTORY}/${target_nonslotted}"
 		fi
 	done
 }
@@ -992,16 +1045,16 @@ do_deregister()
 
 describe_list()
 {
-	printf "%s\n" "List available wine versions"
+	printf "%s\\n" "List available wine versions"
 }
 
 describe_list_options()
 {
 	local variant
 	for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
-		printf "%s\n" "--${variant} : List all available $(get_wine_variant_decription "${variant}") targets"
+		printf "%s\\n" "--${variant} : List all available $(get_wine_variant_decription "${variant}") targets"
 	done
-	printf "%s\n" "--all : List all available 'wine' and variant targets"
+	printf "%s\\n" "--all : List all available 'wine' and variant targets"
 }
 
 # do_list()
@@ -1010,22 +1063,25 @@ describe_list_options()
 #	Return sorted list of files installed for a particular wine variant.
 do_list()
 {
-	local active column il iv installed_list installed_list_total stripped_colour_codes
+	local active column il iv installed_list installed_list_total stripped_colour_codes setting target value
 	local -a variants_array=( ) options_array=( "--all" )
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" . "${@}"
 
+	wait_for_global_lock 0 "true"
 	for (( iv=0 ; iv<${#variants_array[@]} ; ++iv )); do
-		((iv>0)) && printf "\n"
+		((iv>0)) && printf "\\n"
 		write_list_start "Available $(get_wine_variant_decription "${variants_array[iv]}") versions:"
-		installed_list=($(get_installed_targets 1 "${variants_array[iv]}"))
+		# shellcheck disable=SC2207
+		installed_list=( $(get_installed_targets 1 "${variants_array[iv]}") )
 		active=$(get_active 1 "${variants_array[iv]}")
 
 		installed_list_total=${#installed_list[@]}
 		for (( il = 0 ; il < installed_list_total ; il++ )); do
 			target="${installed_list[il]}"
+			installed_list[il]="$( echo "${target}" | sed -E 's/(.*)-/\1:/' )"
 			if [[ "${target}" = "${active}" ]]; then
-				installed_list[il]=$(highlight_marker "${target}")
+				installed_list[il]=$(highlight_marker "${installed_list[il]}")
 			fi
 			if [[ ! -f "${G_CONFIG_DIRECTORY}/${target}" ]] || is_output_mode brief; then
 				continue
@@ -1055,16 +1111,16 @@ do_list()
 
 describe_show()
 {
-	printf "%s\n" "Show the active wine version"
+	printf "%s\\n" "Show the active wine version"
 }
 
 describe_show_options()
 {
 	local variant
 	for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
-		printf "%s\n" "--${variant} :  Show the active $(get_wine_variant_decription "${variant}") version"
+		printf "%s\\n" "--${variant} :  Show the active $(get_wine_variant_decription "${variant}") version"
 	done
-	printf "%s\n" "--all : Show the active 'wine' version and all variant versions"
+	printf "%s\\n" "--all : Show the active 'wine' version and all variant versions"
 }
 
 # do_show()
@@ -1078,14 +1134,15 @@ do_show()
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" . "${@}"
 
+	wait_for_global_lock 0 "true"
 	for (( i=0 ; i<${#variants_array[@]} ; ++i )); do
-		((i>0)) && printf "\n"
+		((i>0)) && printf "\\n"
 		variant="${variants_array[i]#--}"
 
 		variant="wine-${variant#wine}"
 		write_list_start "Active ${variant%-} version:"
 		active=$(get_active 1 "${variants_array[i]}")
-		line="${active}"
+		line="$( echo "${active}" | sed -E 's/(.*)-/\1:/' )"
 		if [[ -f "${G_CONFIG_DIRECTORY}/${active}" ]] && ! is_output_mode brief; then
 			line="${line}   "
 			column=0
@@ -1110,19 +1167,19 @@ do_show()
 
 describe_unset()
 {
-	printf "%s\n" "Remove wine symbolic links"
+	printf "%s\\n" "Remove wine symbolic links"
 }
 
 describe_unset_options()
 {
 	local variant
 	for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
-		printf "%s\n" "--${variant} : Remove symbolic links for $(get_wine_variant_decription "${variant}") "
+		printf "%s\\n" "--${variant} : Remove symbolic links for $(get_wine_variant_decription "${variant}") "
 	done
-	printf "%s\n" "--all : Remove symbolic links for the currently active 'wine' version and all variant versions"
-	printf "%s\n" "--clean : Purge any orphaned symbolic links - associated with this module"
-	printf "%s\n" "--force : Forcibly remove symbolic links - ignore errors"
-	printf "%s\n" "--verbose : Print detailed information about operations performed"
+	printf "%s\\n" "--all : Remove symbolic links for the currently active 'wine' version and all variant versions"
+	printf "%s\\n" "--clean : Purge any orphaned symbolic links - associated with this module"
+	printf "%s\\n" "--force : Forcibly remove symbolic links - ignore errors"
+	printf "%s\\n" "--verbose : Print detailed information about operations performed"
 }
 
 # do_unset()
@@ -1134,23 +1191,29 @@ describe_unset_options()
 #	Remove wine symbolic links for all specified wine variants.
 do_unset()
 {
-	local i variant clean_arg force_arg verbose_arg
+	local active i variant clean_arg force_arg verbose_arg
 	local -a variants_array=( ) options_array=( "--all" "--clean" "--force" "--verbose" )
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" . "${@}"
 	# shellcheck disable=SC2068
-	has "--clean" ${options_array[@]}	&& clean_arg="--clean"
+	has "--clean" "${options_array[@]}"		&& clean_arg="--clean"
 	# shellcheck disable=SC2068
-	has "--force"	${options_array[@]}		&& force_arg="--force"
+	has "--force"	"${options_array[@]}"	&& force_arg="--force"
 	# shellcheck disable=SC2068
-	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
-
+	has "--verbose" "${options_array[@]}"	&& verbose_arg="--verbose"
+	
+	wait_for_global_lock 1 "${verbose_arg}"
 	for (( i=0 ; i<${#variants_array[@]} ; ++i )); do
 		variant="${variants_array[i]#--}"
-		if ! remove_symlinks 1 "${variants_array[i]}" "${clean_arg}" "${force_arg}" "${verbose_arg}"; then
-			printf "%s\n" "${FUNCNAME[0]}(): Couldn't remove $(get_wine_variant_decription "${variant}") symbolic links"
+		active=$(get_active 1 "${variants_array[i]}")
+		if ! get_target_status 1 "${active}" "1"; then
+			write_warning_msg "${FUNCNAME[0]}(): No active target set for $(get_wine_variant_decription "${variant}")"
+			continue
+		elif ! remove_symlinks 1 "${variants_array[i]}" "${clean_arg}" "${force_arg}" "${verbose_arg}"; then
+			write_warning_msg "${FUNCNAME[0]}(): Couldn't remove $(get_wine_variant_decription "${variant}") symbolic links"
 			continue
 		fi
+
 		store_config "${G_CONFIG_DIRECTORY}/active" "${variant}" ""
 	done
 }
@@ -1159,24 +1222,24 @@ do_unset()
 
 describe_set()
 {
-	printf "%s\n" "Set a new wine version"
+	printf "%s\\n" "Set a new wine version"
 }
 
 describe_set_parameters()
 {
-	printf "%s\n" "<target>"
+	printf "%s\\n" "<target>"
 }
 
 describe_set_options()
 {
 	local variant
 	for variant in "${G_WINE_VARIANTS_ARRAY[@]}"; do
-		printf "%s\n" "--${variant} : Set only the $(get_wine_variant_decription "${variant}") symbolic links"
+		printf "%s\\n" "--${variant} : Set only the $(get_wine_variant_decription "${variant}") symbolic links"
 	done
-	printf "%s\n" "--force : Forcibly set symbolic links - ignore errors"
-	printf "%s\n" "--if-unset : Don't set specified target if a valid existing target is already set (for each selected wine variant)"
-	printf "%s\n" "--verbose : Print detailed information about operations performed"
-	printf "%s\n" "target : A fully qualified wine variant or (eselect wine list) entry number"
+	printf "%s\\n" "--force : Forcibly set symbolic links - ignore errors"
+	printf "%s\\n" "--if-unset : Don't set specified target if a valid existing target is already set (for each selected wine variant)"
+	printf "%s\\n" "--verbose : Print detailed information about operations performed"
+	printf "%s\\n" "target : A fully qualified wine variant or (eselect wine list) entry number"
 }
 
 # do_set()
@@ -1192,17 +1255,19 @@ describe_set_options()
 #   where a pre-existing target is set.
 do_set()
 {
-	local active active_status i installed_list force_arg target variant unset_arg verbose_arg
+	local active active_status i installed_list force_arg target target_nonslotted variant unset_arg verbose_arg
 	local -a variants_array=( ) options_array=( "--if-unset" "--verbose" "--force" )
 
 	validate_exported_function_parameters 1 "options_array" . "variants_array" "target" "${@}"
 	# shellcheck disable=SC2068
-	has "--force"	${options_array[@]}		&& force_arg="--force"
+	has "--force"	"${options_array[@]}"	&& force_arg="--force"
 	# shellcheck disable=SC2068
 	has "--if-unset" ${options_array[@]}	&& unset_arg="--if-unset"
 	# shellcheck disable=SC2068
-	has "--verbose" ${options_array[@]}		&& verbose_arg="--verbose"
+	has "--verbose" "${options_array[@]}"	&& verbose_arg="--verbose"
+	target_nonslotted="$( echo "${target}" | sed -E 's/(.*):/\1-/' )"
 
+	wait_for_global_lock 1 "${verbose_arg}"
 	for (( i=0 ; i<${#variants_array[@]} ; ++i )); do
 		variant="${variants_array[i]#--}"
 		active=$(get_active 1 "${variants_array[i]}")
@@ -1214,11 +1279,11 @@ do_set()
 		if ((active_status != 2)) && ! do_unset "${variants_array[i]}" "${force_arg}" "${verbose_arg}"; then
 			die -q "${FUNCNAME[0]}(): Failed to unset active target"
 		fi
-		if ! set_symlinks 1 "${variants_array[i]}" "${target}" "${force_arg}" "${verbose_arg}"; then
+		if ! set_symlinks 1 "${variants_array[i]}" "${target_nonslotted}" "${force_arg}" "${verbose_arg}"; then
 			die -q "${FUNCNAME[0]}(): Couldn't set $(get_wine_variant_decription "${variant}") symbolic links"
 		fi
 
-		store_config "${G_CONFIG_DIRECTORY}/active" "${variant}" "${target}"
+		store_config "${G_CONFIG_DIRECTORY}/active" "${variant}" "${target_nonslotted}"
 	done
 }
 

@@ -1,8 +1,8 @@
 .\" -*- coding: utf-8 -*-
-.\" Copyright 2005-2017 Gentoo Foundation
+.\" Copyright 2005-2018 Gentoo Foundation
 .\" Distributed under the terms of the GNU GPL version 2 or later
 .\"
-.TH wine.eselect 5 "September 2017" "Gentoo Linux" eselect
+.TH wine.eselect 5 "February 2018" "Gentoo Linux" eselect
 .SH NAME
 wine.eselect \- Gentoo management module for switching between installed multislot \fBapp-emulation\fR/\fBwine-staging\fR / \fBapp-emulation\fR/\fBwine-vanilla\fR package versions.
 .SH SYNOPSIS
@@ -30,7 +30,7 @@ wine.eselect \- Gentoo management module for switching between installed multisl
 .TP
 .SH \fItarget\fR
 .br
-Fully qualified wine package name and version or it's associated number (as displayed in \fBeselect wine list\fR output).
+\fRFully qualified wine package name and version (\fB${PN}\fR:\fB${PV}\fR or \fB${PN}\fR-\fB${PV}\fR) or the associated entry number (as displayed in \fBeselect wine list\fR output).
 .TP
 .SH \fICOMMIT\fR
 .br
@@ -54,26 +54,27 @@ This active \fBwine\fR target will have symbolic links in global system paths wh
 
 This eselect module uses symbolic links in:
 
-   (1) ${EPREFIX}/usr/bin/*                        (binaries)
-   (2) ${EPREFIX}/usr/lib{32,64}/wine[-variant]/*  (libraries)
-   (3) ${EPREFIX}/usr/include/wine[-variant]/*     (include)
-   (4) ${EPREFIX}/usr/share/applications/*         (applications)
-   (5) ${EPREFIX}/usr/share/man/*                  (manuals)
+   (1) ${EPREFIX}/usr/bin/*                                      (binaries)
+   (2) ${EPREFIX}/usr/lib{32,64}/*                               (libraries)
+   (3) ${EPREFIX}/usr/include/wine[-variant]/*                   (include)
+   (4) ${EPREFIX}/usr/share/applications/*                       (applications)
+   (5) ${EPREFIX}/usr/share/man/*                                (manuals)
 
 targeting (1) executable, (2) library, (3) include headers, (4) desktop, and (5) manpage files (respectively) - for the currently active (variant) package version.
 .br
 
-Details of the installed and currently active Wine package for each wine variant are stored in global configuration files under:
+Details of the installed and currently active Wine package for each wine variant are stored in global configuration files:
 
-       ${EROOT}/etc/eselect/wine
+       ${EROOT}/etc/eselect/wine/installed
+       ${EROOT}/etc/eselect/wine/active
 
-Records are also maintained of all the symbolic links in place for the currently active Wine packages (for each wine variant) under:
+Records are also maintained of all the symbolic links in place for the currently active Wine packages (for each wine variant) in:
 
-       ${EROOT}/etc/eselect/wine/links
+       ${EROOT}/etc/eselect/wine/links/[variant]
 
 Metadata for multislot wine packages is stored in a seperate file for each package:
 
-       ${EROOT}/etc/eselect/wine/${P}
+       ${EROOT}/etc/eselect/wine/${PN}-${PV}
 
 Git commit and commit date are the only currently supported metadata fields (for use with live targets).
 
@@ -110,7 +111,7 @@ Deregister a multislot wine package with the eselect module - for the specified 
 .TP
 .SH \fItarget
 .br
-\fRFully qualified wine package name and version.
+\fRFully qualified wine package name and version (\fB${PN}\fR:\fB${PV}\fR or \fB${PN}\fR-\fB${PV}\fR) or the associated entry number (as displayed in \fBeselect wine list\fR output).
 .br
 
 .br
@@ -145,9 +146,9 @@ Metadata fields are typically only used / set for live targets.
 .TP
 .SH \fIoption
 .br
-\fB--commit=\fRCOMMIT  Register a Git commit SHA-1 hash (COMMIT) for the specified target (metadata field).
+\fB--commit\fR=COMMIT  Register a Git commit SHA-1 hash (COMMIT) for the specified target (metadata field).
 .br
-\fB--date=\fRDATE      Register a Git commit date (DATE) for the specified target (metadata field).
+\fB--date\fR=DATE      Register a Git commit date (DATE) for the specified target (metadata field).
 .br
 \fB--verbose\fR        Print detailed information about operations being performed.
 .br
@@ -163,7 +164,7 @@ Metadata fields are typically only used / set for live targets.
 .TP
 .SH \fItarget
 .br
-\fRFully qualified wine package name and version.
+\fRFully qualified wine package name and version (\fB${PN}\fR:\fB${PV}\fR or \fB${PN}\fR-\fB${PV}\fR) or the associated entry number (as displayed in \fBeselect wine list\fR output).
 .br
 .SH ACTION: SET
 .B eselect wine set \fR[\fIoption\fR]... \fR[\fIvariant\fR]...
@@ -193,7 +194,7 @@ May also be used to reset the symbolic links for an existing wine version.
 .TP
 .SH \fItarget
 .br
-\fRFully qualified wine package name and version.
+\fRFully qualified wine package name and version (\fB${PN}\fR:\fB${PV}\fR or \fB${PN}\fR-\fB${PV}\fR) or the associated entry number (as displayed in \fBeselect wine list\fR output).
 .br
 .PP
 .SH ACTION: SHOW
