@@ -17,7 +17,8 @@ variant
 ```
 ```
 target
-    Fully qualified wine package name and version or it's associated number (refer to: **eselect wine list** output).
+    Fully qualified wine package name and version (${PN}:${PV} or ${P})
+    or the associated list item number (refer to: eselect wine list output).
 ```
 ```
 COMMIT
@@ -39,19 +40,20 @@ The currently active package is selectable for each wine variant.
 In addition a **wine target** is used to select the currently globally active default Wine package version.
 This active wine target will have symbolic links in global system paths which would directly conflict with the pre-existing **app-emulation/wine**:0 package.
 
-This eselect module uses symbolic links in:
+This eselect module creates symbolic links:
 ```
   ${EPREFIX}/usr/bin/*
-  ${EPREFIX}/usr/lib{32,64}/wine[-variant]/*
-  ${EPREFIX}/usr/include/wine[-variant]/*
+  ${EPREFIX}/usr/lib{32,64}/*
+  ${EPREFIX}/usr/include/wine[-variant]
   ${EPREFIX}/usr/share/applications/*
   ${EPREFIX}/usr/share/man/*
 ```
 targeting (1) *executable*, (2) *library*, (3) *include headers*, (4) *desktop*, and (5) *manpage* files (respectively) - for the currently active (variant) package version.
 
-Details of the installed and currently active Wine package for each wine variant are stored in global configuration files under:
+Details of the installed and currently active Wine package for each wine variant are stored in the global configuration files:
 ```
-  ${EROOT}/etc/eselect/wine
+  ${EROOT}/etc/eselect/wine/installed
+  ${EROOT}/etc/eselect/wine/active
 ```
 Records are also maintained of all the symbolic links in place for the currently active Wine packages (for each wine variant) under:
 ```
@@ -83,7 +85,7 @@ variant
 ```
 ```
 target
-    Fully qualified wine package name and version.
+    Fully qualified wine package name and version (see above).
 ```
 
 ## ACTION: LIST
@@ -118,7 +120,7 @@ variant
 ```
 ```
 target
-    Fully qualified wine package name and version.```
+    Fully qualified wine package name and version (see above).```
 ```
 ## ACTION: SET
 ```
@@ -140,7 +142,7 @@ variant
 ```
 ```
 target
-    Fully qualified wine package name and version.
+    Fully qualified wine package name and version (see above).
 ```
 
 ## ACTION: SHOW
