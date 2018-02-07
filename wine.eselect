@@ -9,7 +9,7 @@ inherit config multilib tests
 
 DESCRIPTION="Manage active wine version"
 MAINTAINER="bob.mt.wya@gmail.com"
-VERSION="1.5.3"
+VERSION="1.5.4"
 
 
 # Declare global constants
