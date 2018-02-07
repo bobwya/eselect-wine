@@ -4,7 +4,7 @@
 .\"
 .TH wine.eselect 5 "February 2018" "Gentoo Linux" eselect
 .SH NAME
-wine.eselect \- Gentoo management module for switching between installed multislot \fBapp-emulation\fR/\fBwine-staging\fR / \fBapp-emulation\fR/\fBwine-vanilla\fR package versions.
+wine.eselect \- Gentoo management module for switching between installed multislot \fBapp-emulation\fR/\fBwine-\fR{\fBstaging\fR,\fBvanilla\fR} package versions.
 .SH SYNOPSIS
 .B eselect wine \fR[\fBhelp\fR|\fBusage\fR|\fBversion\fR]
 .br
@@ -30,20 +30,21 @@ wine.eselect \- Gentoo management module for switching between installed multisl
 .TP
 .SH \fItarget\fR
 .br
-\fRFully qualified wine package name and version (\fB${PN}\fR:\fB${PV}\fR or \fB${PN}\fR-\fB${PV}\fR) or the associated entry number (as displayed in \fBeselect wine list\fR output).
+\fRFully qualified wine package name and version (\fB${PN}\fR:\fB${PV}\fR or \fB${P}\fR)
+ or the associated entry number (as displayed in \fBeselect wine list\fR output).
 .TP
 .SH \fICOMMIT\fR
 .br
-SHA-1 Git commit for a live build of \fBapp-emulation\fR/\fBwine-staging\fR / \fBapp-emulation\fR/\fBwine-vanilla\fR.
+SHA-1 Git commit for a live build of \fBapp-emulation\fR/\fBwine-\fR{\fBstaging\fR,\fBvanilla\fR}.
 .TP
 .SH \fIDATE\fR
 .br
-Git commit date for a live build of \fBapp-emulation\fR/\fBwine-staging\fR / \fBapp-emulation\fR/\fBwine-vanilla\fR.
+Git commit date for a live build of \fBapp-emulation\fR/\fBwine-\fR{\fBstaging\fR,\fBvanilla\fR}.
 .br
 .SH DESCRIPTION
 .PP
 \fBeselect wine\fR \- is the Gentoo management module for switching between installed multislot
-\fBapp-emulation\fR/\fBwine-staging\fR / \fBapp-emulation\fR/\fBwine-vanilla\fR package versions.
+\fBapp-emulation\fR/\fBwine-\fR{\fBstaging\fR,\fBvanilla\fR} package versions.
 .br
 The currently active package is selectable for each wine variant.
 .br
@@ -52,13 +53,13 @@ In addition a \fBwine\fR target is used to select the currently globally active 
 .br
 This active \fBwine\fR target will have symbolic links in global system paths which would directly conflict with the pre-existing \fBapp-emulation\fR/\fBwine\fR:0 package.
 
-This eselect module uses symbolic links in:
+This eselect module uses symbolic links at:
 
-   (1) ${EPREFIX}/usr/bin/*                                      (binaries)
-   (2) ${EPREFIX}/usr/lib{32,64}/*                               (libraries)
-   (3) ${EPREFIX}/usr/include/wine[-variant]/*                   (include)
-   (4) ${EPREFIX}/usr/share/applications/*                       (applications)
-   (5) ${EPREFIX}/usr/share/man/*                                (manuals)
+   (1) ${EPREFIX}/usr/bin/*                               (binaries)
+   (2) ${EPREFIX}/usr/lib{32,64}/*                        (libraries)
+   (3) ${EPREFIX}/usr/include/wine[-variant]              (include)
+   (4) ${EPREFIX}/usr/share/applications/*                (applications)
+   (5) ${EPREFIX}/usr/share/man/*                         (manuals)
 
 targeting (1) executable, (2) library, (3) include headers, (4) desktop, and (5) manpage files (respectively) - for the currently active (variant) package version.
 .br
@@ -111,7 +112,7 @@ Deregister a multislot wine package with the eselect module - for the specified 
 .TP
 .SH \fItarget
 .br
-\fRFully qualified wine package name and version (\fB${PN}\fR:\fB${PV}\fR or \fB${PN}\fR-\fB${PV}\fR) or the associated entry number (as displayed in \fBeselect wine list\fR output).
+\fRFully qualified wine package name+version or list entry number (see above).
 .br
 
 .br
@@ -164,7 +165,7 @@ Metadata fields are typically only used / set for live targets.
 .TP
 .SH \fItarget
 .br
-\fRFully qualified wine package name and version (\fB${PN}\fR:\fB${PV}\fR or \fB${PN}\fR-\fB${PV}\fR) or the associated entry number (as displayed in \fBeselect wine list\fR output).
+\fRFully qualified wine package name+version or list entry number (see above).
 .br
 .SH ACTION: SET
 .B eselect wine set \fR[\fIoption\fR]... \fR[\fIvariant\fR]...
@@ -194,7 +195,7 @@ May also be used to reset the symbolic links for an existing wine version.
 .TP
 .SH \fItarget
 .br
-\fRFully qualified wine package name and version (\fB${PN}\fR:\fB${PV}\fR or \fB${PN}\fR-\fB${PV}\fR) or the associated entry number (as displayed in \fBeselect wine list\fR output).
+\fRFully qualified wine package name+version or list entry number (see above).
 .br
 .PP
 .SH ACTION: SHOW
