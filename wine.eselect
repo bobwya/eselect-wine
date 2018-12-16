@@ -51,7 +51,7 @@ unset -v colour colour_column variant
 trap_exit()
 {
         trap '' ABRT INT QUIT TERM EXIT
-        if [[ ! -z "${G_LOCKFILE}" && -f "${G_LOCKFILE}" ]]; then
+        if [[ -n "${G_LOCKFILE}" && -f "${G_LOCKFILE}" ]]; then
 			rm -f "${G_LOCKFILE}" >/dev/null 2>&1
 		fi
 		exit
@@ -68,7 +68,7 @@ wait_for_global_lock()
 	local read_write="${1:-0}" verbose_arg="${2:-}"
 
 	while [[ -f "${G_LOCKFILE_DEFAULT}" && -z "${G_LOCKFILE}" ]]; do
-		if [[ ! -z "${verbose_arg}" ]]; then
+		if [[ -n "${verbose_arg}" ]]; then
 			printf "%s\\n" "Waiting for lockfile \"${G_LOCKFILE_DEFAULT}\" to clear - have you another active eselect wine process?"
 		fi
 		sleep 5
@@ -92,7 +92,7 @@ set_dir_env()
 	export global_binaries_directory="${global_prefix_directory}/bin"
 	export global_include_directory="${global_prefix_directory}/include"
 	export global_manuals_directory="${global_prefix_directory}/share/man"
-	if [[ ! -z "${1}" ]]; then
+	if [[ -n "${1}" ]]; then
 		local target="${1}"
 
 		export wine_binaries_directory="${global_prefix_directory}/lib/${target}/bin"
@@ -163,7 +163,7 @@ desktop_database_update()
 	local update_database_bin="${EPREFIX}/usr/bin/update-desktop-database"
 
 	if [[ -x "${update_database_bin}" ]]; then
-		[[ ! -z "${verbose_arg}" ]] \
+		[[ -n "${verbose_arg}" ]] \
 			&& printf "%s\\n" "${FUNCNAME[0]}(): Updating desktop mime database ..."
 
 		"${update_database_bin}" -q "${EPREFIX}/usr/share/applications" \
@@ -184,7 +184,7 @@ sort_versions()
 	# (1) Prepend version string (column 1)
 	# (2) Apply version sort
 	# (3) Remove prepended version string (column 1)
-	sed 's/^\([-[:alpha:]]\+\-\)\([.[:digit:]]\+\)\(\|\_p[[:digit:]]\+\|\_rc[[:digit:]]\+\)$/\2\3 &/' \
+	sed 's/^\([-[:alpha:]]\+\-\)\([.[:digit:]]\+\)\(\|\_rc[[:digit:]]\+\)\(\|\_p[[:digit:]]\+\)$/\2\3\4 &/' \
 		| LC_ALL=C ${vsort} \
 		| awk '{print $2}'
 }
@@ -349,7 +349,7 @@ validate_exported_function_parameters()
 					die -q "${FUNCNAME[csi]}(): Please specify a single target only: target '${1}' invalid"
 			elif ((has_target)); then
 				target_reference="${1}"
-			elif [[ ! -z "${1}" ]]; then
+			elif [[ -n "${1}" ]]; then
 				die "${FUNCNAME[csi]}(): Invalid parameter: '${1}'"
 			fi
 		elif has "${1}" "${G_VARIANT_OPTIONS[@]}"; then
@@ -447,7 +447,7 @@ validate_symlinks()
 
 		[[ "${variant}" != "wine" ]]	&& variant_suffix="-${variant}"
 
-		if [[ ! -z "${verbose_arg}" ]]; then
+		if [[ -n "${verbose_arg}" ]]; then
 			printf "%s\\n" "${FUNCNAME[csi]}(): Checking variable: '${variable}'; for target: '${target}' ($(get_wine_variant_decription "${variant}")) ..."
 		fi
 		symlinks=$(load_config "${G_CONFIG_DIRECTORY}/links/${variant}" "${variable}")
@@ -531,7 +531,7 @@ validate_symlinks()
 					;;
 			esac
 
-			if [[ ! -z "${verbose_arg}" ]]; then
+			if [[ -n "${verbose_arg}" ]]; then
 				printf "%s\\n" "${FUNCNAME[csi]}(): Validated symbolic link ('${symlink}' -> '${target_file}') for path '${variant_path}' ..."
 			fi
 		done
@@ -552,7 +552,7 @@ validate_symlinks()
 		write_error_msg "${FUNCNAME[csi]}(): Invalid active configuration for variant: '${variant}'"
 		return 1
 	fi
-	if [[ ! -z "${verbose_arg}" ]]; then
+	if [[ -n "${verbose_arg}" ]]; then
 		printf "%s\\n" "${FUNCNAME[csi]}(): Working with target '${target}' ..."
 	fi
 
@@ -576,7 +576,7 @@ validate_symlinks()
 		fi
 	done
 
-	if [[ ! -z "${symlink_variables}" ]]; then
+	if [[ -n "${symlink_variables}" ]]; then
 		write_error_msg "${FUNCNAME[csi]}(): Unknown symlink_directories: '${symlink_variables}' in configuration ($G_CONFIG_DIRECTORY)"
 		return 1
 	fi
@@ -635,7 +635,7 @@ remove_orphaned_bin_symlinks()
 
 	set_dir_env
 
-	if ! which qfile >/dev/null 2>&1; then
+	if ! command -v qfile >/dev/null 2>&1; then
 		die -q "${FUNCNAME[0]}(): Please install the: 'app-portage/portage-utils' package"
 	fi
 	remove_symlink $((csi+1)) "${global_applications_directory%/}/wine.desktop" "${variant}"
@@ -690,7 +690,7 @@ remove_symlinks()
 			else
 				write_warning_msg "${FUNCNAME[csi]}(): Failed to remove symbolic link ('${symlink}')"
 			fi
-		elif [[ ! -z "${verbose_arg}" ]]; then
+		elif [[ -n "${verbose_arg}" ]]; then
 			printf "${FUNCNAME[csi]}(): %s\\n" "Removed symbolic link ('${symlink}') for $(get_wine_variant_decription "${variant}")..."
 		fi
 	}
@@ -792,7 +792,7 @@ set_symlinks()
 			write_warning_msg "${FUNCNAME[csi]}(): Failed to set symbolic link from ('${link_reference}' -> '${link_target}') for $(get_wine_variant_decription "${variant}") ... Cleaning up."
 			remove_symlinks $((csi)) "--${variant}" "${force_arg}" "${verbose_arg}"
 			return 1
-		elif [[ ! -z "${verbose_arg}" ]]; then
+		elif [[ -n "${verbose_arg}" ]]; then
 			printf "%s\\n" "${FUNCNAME[csi]}(): Created symbolic link from ('${link_reference}' -> '${link_target}') for $(get_wine_variant_decription "${variant}") ..."
 		fi
 	}
@@ -963,10 +963,10 @@ do_register()
 			# shellcheck disable=SC2207
 			installed_list=( $(sort_list "${installed_list} ${target_nonslotted}") )
 			store_config "${G_CONFIG_DIRECTORY}/installed" "${variant}" "${installed_list[@]}"
-			if [[ ! -z "${verbose_arg}" ]]; then
+			if [[ -n "${verbose_arg}" ]]; then
 				printf "%s\\n" "${FUNCNAME[0]}(): Successfully added target '${target}' to $(get_wine_variant_decription "${variant}") installed list"
 			fi
-		elif [[ ! -z "${verbose_arg}" ]]; then
+		elif [[ -n "${verbose_arg}" ]]; then
 			printf "%s\\n" "${FUNCNAME[0]}(): Target '${target}' already in $(get_wine_variant_decription "${variant}") installed list"
 		fi
 		for (( is=0 ; is<${#settings_array[@]} ; ++is )); do
@@ -1273,7 +1273,7 @@ do_set()
 		active=$(get_active 1 "${variants_array[i]}")
 		get_target_status 1 "${active}" "1"
 		active_status=$?
-		if [[ ! -z "${unset_arg}" ]] && ((!active_status)) && validate_symlinks 1 "${variants_array[i]}" "${verbose_arg}"; then
+		if [[ -n "${unset_arg}" ]] && ((!active_status)) && validate_symlinks 1 "${variants_array[i]}" "${verbose_arg}"; then
 			continue
 		fi
 		if ((active_status != 2)) && ! do_unset "${variants_array[i]}" "${force_arg}" "${verbose_arg}"; then
